@@ -82,6 +82,31 @@ export function createSeedData(): DB {
         registeredAt: new Date().toISOString()
       }
     ],
+    sessionSlots: [
+      {
+        id: uid(),
+        tutorId: "u2",
+        date: new Date().toISOString().slice(0, 10),
+        startTime: "17:00",
+        endTime: "18:00",
+        status: "available",
+        notes: "Online session"
+      },
+      {
+        id: uid(),
+        tutorId: "u2",
+        date: new Date().toISOString().slice(0, 10),
+        startTime: "18:30",
+        endTime: "19:30",
+        status: "reserved",
+        learnerName: "Student User",
+        notes: "Calculus review"
+      }
+    ],
+    sessionSettings: {
+      defaultDailySlots: 8,
+      slotDurationMinutes: 90
+    },
     requests: [],
     questionnaires: [],
     tests: []

@@ -1,5 +1,5 @@
 export type Role = "visitor" | "student" | "parent" | "tutor" | "admin";
-export type Route = "home" | "courses" | "exam-prep" | "assessment" | "contact" | "login" | "dashboard";
+export type Route = "home" | "courses" | "exam-prep" | "assessment" | "contact" | "login" | "dashboard" | "policy";
 
 export interface User {
   id: string;
@@ -37,6 +37,24 @@ export interface LearnerCourseRecord {
   courseId: string;
   status: CourseProgressStatus;
   registeredAt: string;
+}
+
+export type SessionSlotStatus = "available" | "reserved";
+
+export interface SessionSlot {
+  id: string;
+  tutorId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: SessionSlotStatus;
+  learnerName?: string;
+  notes?: string;
+}
+
+export interface SessionSettings {
+  defaultDailySlots: number;
+  slotDurationMinutes: number;
 }
 
 export type SelectableOptionKey =
@@ -105,6 +123,8 @@ export interface DB {
   faq: FaqItem[];
   courses: Course[];
   learnerCourses: LearnerCourseRecord[];
+  sessionSlots: SessionSlot[];
+  sessionSettings: SessionSettings;
   requests: BookingRequest[];
   questionnaires: Questionnaire[];
   tests: TestRecord[];

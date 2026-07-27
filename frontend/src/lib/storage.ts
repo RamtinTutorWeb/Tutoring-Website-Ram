@@ -16,6 +16,11 @@ export function loadDB(): DB {
     ...(db.selectableOptions ?? {})
   };
   db.learnerCourses = db.learnerCourses ?? [];
+  db.sessionSlots = db.sessionSlots ?? [];
+  db.sessionSettings = db.sessionSettings ?? {
+    defaultDailySlots: 8,
+    slotDurationMinutes: 90
+  };
   return db;
 }
 

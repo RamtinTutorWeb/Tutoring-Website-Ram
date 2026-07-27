@@ -281,6 +281,23 @@ textarea {
   padding: 0.5rem 0.62rem;
 }
 
+.password-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: end;
+}
+
+.password-wrap input {
+  margin-top: 0.28rem;
+}
+
+.password-toggle {
+  min-width: 64px;
+  margin-top: 0.28rem;
+  padding-inline: 0.55rem;
+}
+
 input:focus,
 select:focus,
 textarea:focus {
@@ -488,6 +505,148 @@ button {
   color: var(--orange-soft);
 }
 
+.rating-stars {
+  display: inline-flex;
+  gap: 0.08rem;
+  margin-left: 0.35rem;
+  font-size: 1rem;
+  vertical-align: baseline;
+}
+
+.star-on {
+  color: var(--phosphor);
+}
+
+.star-off {
+  color: #ffffff;
+}
+
+.course-detail summary {
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.course-detail p {
+  margin-bottom: 0;
+}
+
+.calendar-slots {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.calendar-overview {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+.calendar-day {
+  min-height: 92px;
+  display: grid;
+  align-content: center;
+  gap: 0.18rem;
+  margin: 0;
+  text-align: left;
+  background: color-mix(in srgb, var(--surface-strong) 82%, var(--cyan-deep) 18%);
+}
+
+.calendar-day.active {
+  border-color: var(--phosphor);
+  box-shadow: inset 0 0 0 1px var(--phosphor);
+}
+
+.calendar-day.available {
+  border-color: color-mix(in srgb, var(--pistachio) 58%, var(--line) 42%);
+}
+
+.calendar-day.unavailable {
+  border-color: color-mix(in srgb, var(--danger) 52%, var(--line) 48%);
+  opacity: 0.86;
+}
+
+.calendar-day span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.calendar-day-status {
+  color: var(--phosphor) !important;
+  font-weight: 900;
+}
+
+.calendar-day.unavailable .calendar-day-status {
+  color: var(--danger) !important;
+}
+
+.calendar-slot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.68rem;
+  background: var(--surface-strong);
+}
+
+.calendar-slot.available {
+  border-color: color-mix(in srgb, var(--pistachio) 65%, var(--line) 35%);
+}
+
+.calendar-slot.reserved {
+  border-color: color-mix(in srgb, var(--orange-mid) 65%, var(--line) 35%);
+}
+
+.calendar-slots.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.calendar-settings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  align-items: end;
+  margin-top: 0.8rem;
+}
+
+.calendar-slot-button {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  text-align: left;
+}
+
+.calendar-slot-button.available {
+  border-color: color-mix(in srgb, var(--pistachio) 65%, var(--line) 35%);
+}
+
+.calendar-slot-button.reserved {
+  border-color: color-mix(in srgb, var(--orange-mid) 65%, var(--line) 35%);
+}
+
+.calendar-slot-button span {
+  color: var(--muted);
+}
+
+.session-modal-backdrop {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 360px;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(5, 18, 38, 0.86), rgba(10, 42, 74, 0.9)),
+    repeating-linear-gradient(90deg, transparent 0 13%, rgba(184, 255, 87, 0.08) 13% 14%);
+}
+
+.session-modal {
+  width: min(640px, 100%);
+}
+
 .muted {
   color: var(--muted);
 }
@@ -540,6 +699,18 @@ button {
   color: var(--phosphor);
 }
 
+.inline-action {
+  display: inline-block;
+  color: var(--phosphor);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.inline-action:hover {
+  color: var(--pistachio);
+  text-decoration: underline;
+}
+
 @media (max-width: 1040px) {
   .home-grid {
     grid-template-columns: 1fr;
@@ -560,6 +731,9 @@ button {
   .grid-2,
   .dashboard-grid,
   .course-progress-list,
+  .calendar-overview,
+  .calendar-slots.compact,
+  .calendar-settings,
   .filters,
   .home-side,
   #reviews-list {
@@ -568,7 +742,8 @@ button {
 
   .dashboard-hero,
   .course-progress-head,
-  .learner-course-row {
+  .learner-course-row,
+  .calendar-slot {
     align-items: flex-start;
     flex-direction: column;
   }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import StarRating from "../components/StarRating";
 import { useAppContext } from "../context/AppContext";
-import { stars } from "../lib/format";
 
 export default function HomePage() {
   const { db, currentUser } = useAppContext();
@@ -53,7 +53,7 @@ export default function HomePage() {
               {db.reviews.length ? (
                 db.reviews.map((review) => (
                   <div className="list-item" key={review.id}>
-                    <strong>{review.name}</strong> <span className="muted">{stars(Number(review.rating))}</span>
+                    <strong>{review.name}</strong> <StarRating rating={Number(review.rating)} />
                     <p>{review.text}</p>
                   </div>
                 ))

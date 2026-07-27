@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "../clients/apiClient";
+import PasswordField from "../components/PasswordField";
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -70,25 +71,8 @@ export default function ResetPasswordPage() {
         {success ? <p className="feedback ok">{success}</p> : null}
 
         <form onSubmit={handleSubmit}>
-          <label>
-            New Password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </label>
-
-          <label>
-            Confirm Password
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-            />
-          </label>
+          <PasswordField label="New Password" value={password} onChange={setPassword} required />
+          <PasswordField label="Confirm Password" value={confirmPassword} onChange={setConfirmPassword} required />
 
           <button type="submit" className="primary" disabled={loading}>
             {loading ? "Resetting..." : "Reset Password"}

@@ -3,7 +3,7 @@ import { testQuestions } from "../data/testQuestions";
 import { apiClient } from "../clients/apiClient";
 import { uid } from "../lib/id";
 import { loadDB, saveDB } from "../lib/storage";
-import type { Course, CourseProgressStatus, DB, LearnerCourseRecord, SelectableOptionKey, SelectableOptions, User } from "../types";
+import type { Course, CourseProgressStatus, DB, LearnerCourseRecord, SelectableOptionKey, SelectableOptions, SessionSettings, SessionSlot, SessionSlotStatus, User } from "../types";
 
 interface ContactPayload {
   name: string;
@@ -70,6 +70,11 @@ interface AppContextValue {
   assignCourseToLearner: (payload: Omit<LearnerCourseRecord, "id" | "registeredAt">) => { ok: boolean; message: string };
   updateLearnerCourseStatus: (recordId: string, status: CourseProgressStatus) => void;
   deleteLearnerCourse: (recordId: string) => void;
+  addSessionSlot: (slot: Omit<SessionSlot, "id">) => void;
+  updateSessionSlotStatus: (slotId: string, status: SessionSlotStatus) => void;
+  reserveSessionSlot: (slotId: string, learnerName: string, notes?: string) => void;
+  deleteSessionSlot: (slotId: string) => void;
+  updateSessionSettings: (settings: SessionSettings) => void;
   createTutor: (payload: { name: string; email: string; password: string }) => Promise<{ ok: boolean; message: string }>;
   resetLearnerAccount: (email: string) => Promise<{ ok: boolean; message: string }>;
   addReview: (name: string, rating: number, text: string) => void;
@@ -360,6 +365,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  function addSessionSlot(slot: Omit<SessionSlot, "id">): void {
+    updateDB((draft) => {
+      draft.sessionSlots.push({ id: uid(), ...slot });
+    });
+  }
+
+  function updateSessionSlotStatus(slotId: string, status: SessionSlotStatus): void {
+    updateDB((draft) => {
+      const slot = draft.sessionSlots.find((item) => item.id === slotId);
+      if (slot) slot.status = status;
+    });
+  }
+
+  function reserveSessionSlot(slotId: string, learnerName: string, notes = ""): void {
+    updateDB((draft) => {
+      const slot = draft.sessionSlots.find((item) => item.id === slotId);
+      if (slot) {
+        slot.status = "reserved";
+        slot.learnerName = learnerName;
+        if (notes.trim()) slot.notes = notes.trim();
+      }
+    });
+  }
+
+  function deleteSessionSlot(slotId: string): void {
+    updateDB((draft) => {
+      draft.sessionSlots = draft.sessionSlots.filter((slot) => slot.id !== slotId);
+    });
+  }
+
+  function updateSessionSettings(settings: SessionSettings): void {
+    updateDB((draft) => {
+      draft.sessionSettings = {
+        defaultDailySlots: Math.max(1, Math.round(settings.defaultDailySlots)),
+        slotDurationMinutes: Math.max(15, Math.round(settings.slotDurationMinutes))
+      };
+    });
+  }
+
   async function createTutor(payload: { name: string; email: string; password: string }): Promise<{ ok: boolean; message: string }> {
     const email = payload.email.trim().toLowerCase();
     const { firstname, lastname } = splitName(payload.name);
@@ -500,6 +544,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     assignCourseToLearner,
     updateLearnerCourseStatus,
     deleteLearnerCourse,
+    addSessionSlot,
+    updateSessionSlotStatus,
+    reserveSessionSlot,
+    deleteSessionSlot,
+    updateSessionSettings,
     createTutor,
     resetLearnerAccount,
     addReview,

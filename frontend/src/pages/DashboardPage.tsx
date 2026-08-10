@@ -1,8 +1,9 @@
 import { FormEvent, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import PasswordField from "../components/PasswordField";
 import StarRating from "../components/StarRating";
 import { useAppContext } from "../context/AppContext";
-import type { Course, CourseProgressStatus, FaqItem, Review, SelectableOptionKey, SessionSettings, SessionSlot, SessionSlotStatus, User } from "../types";
+import type { Course, CourseProgressStatus, FaqItem, Review, SelectableOptionKey, SessionSettings, SessionSlot, SessionSlotStatus, SessionType, User } from "../types";
 
 const optionGroupLabels: Record<SelectableOptionKey, string> = {
   contactMethods: "Contact Methods",
@@ -24,6 +25,43 @@ const courseStatusLabels: Record<CourseProgressStatus, string> = {
 const learnerRoles: User["role"][] = ["student", "parent"];
 const calendlyUrl = "https://calendly.com/shahla-ca78/30min";
 
+function formatHour(hour: number): string {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+  return hours * 60 + minutes;
+}
+
+function calculateEndTime(startTime: string, durationMinutes: number): string {
+  if (!startTime) return "";
+  const [hours, minutes] = startTime.split(":").map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes + durationMinutes, 0, 0);
+  return date.toTimeString().slice(0, 5);
+}
+
+function slotsOverlap(a: Pick<SessionSlot, "startTime" | "endTime">, b: Pick<SessionSlot, "startTime" | "endTime">): boolean {
+  return timeToMinutes(a.startTime) < timeToMinutes(b.endTime) && timeToMinutes(b.startTime) < timeToMinutes(a.endTime);
+}
+
+function isSlotLocked(slot: Pick<SessionSlot, "date" | "startTime">): boolean {
+  return new Date(`${slot.date}T${slot.startTime}:00`).getTime() - Date.now() < 24 * 60 * 60 * 1000;
+}
+
+function monthDates(anchor: Date): string[] {
+  const year = anchor.getFullYear();
+  const month = anchor.getMonth();
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  return Array.from({ length: last.getDate() }, (_, index) => {
+    const date = new Date(year, month, index + 1);
+    return date.toISOString().slice(0, 10);
+  });
+}
+
 export default function DashboardPage() {
   const {
     db,
@@ -42,6 +80,8 @@ export default function DashboardPage() {
     createTutor,
     resetLearnerAccount,
     addReview,
+    addPendingReview,
+    approveReview,
     deleteReview,
     addFaq,
     deleteFaq,
@@ -49,6 +89,7 @@ export default function DashboardPage() {
     updateSelectableOption,
     deleteSelectableOption
   } = useAppContext();
+  const navigate = useNavigate();
   const [selectedOptionGroup, setSelectedOptionGroup] = useState<SelectableOptionKey>("contactMethods");
   const [optionFeedback, setOptionFeedback] = useState("");
   const [adminFeedback, setAdminFeedback] = useState("");
@@ -77,6 +118,14 @@ export default function DashboardPage() {
     if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "tutor")) return;
     const fd = new FormData(e.currentTarget);
     addReview(String(fd.get("name") ?? ""), Number(fd.get("rating") ?? 5), String(fd.get("text") ?? ""));
+    e.currentTarget.reset();
+  }
+
+  function handleSubmitStudentReview(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!currentUser || !learnerRoles.includes(currentUser.role)) return;
+    const fd = new FormData(e.currentTarget);
+    addPendingReview(currentUser.name, Number(fd.get("rating") ?? 5), String(fd.get("text") ?? ""));
     e.currentTarget.reset();
   }
 
@@ -176,6 +225,7 @@ export default function DashboardPage() {
           sessionSettings={db.sessionSettings}
           addSessionSlot={addSessionSlot}
           reserveSessionSlot={reserveSessionSlot}
+          handleSubmitStudentReview={handleSubmitStudentReview}
         />
       ) : null}
 
@@ -204,6 +254,17 @@ export default function DashboardPage() {
             <StatCard label="Tutors" value={tutors.length} />
             <StatCard label="Courses" value={db.courses.length} />
             <StatCard label="Open Requests" value={db.requests.filter((request) => request.status !== "closed").length} />
+          </div>
+
+          <div className="card">
+            <h3>Display Preview</h3>
+            <p className="muted">Open the same display pages learners and visitors use.</p>
+            <div className="row">
+              <button type="button" onClick={() => navigate("/")}>Home</button>
+              <button type="button" onClick={() => navigate("/courses")}>Courses</button>
+              <button type="button" onClick={() => navigate("/exam-prep")}>Exam Prep</button>
+              <button type="button" onClick={() => navigate("/contact")}>Contact</button>
+            </div>
           </div>
 
           <div className="grid-2">
@@ -312,7 +373,7 @@ export default function DashboardPage() {
           <RequestsCard requests={db.requests} updateRequestStatus={updateRequestStatus} />
 
           <div className="grid-2">
-            <ReviewsCard reviews={db.reviews} handleAddReview={handleAddReview} deleteReview={deleteReview} />
+            <ReviewsCard reviews={db.reviews} handleAddReview={handleAddReview} approveReview={approveReview} deleteReview={deleteReview} />
             <FaqCard faq={db.faq} handleAddFaq={handleAddFaq} deleteFaq={deleteFaq} />
           </div>
 
@@ -390,7 +451,8 @@ function LearnerDashboard({
   sessionSlots,
   sessionSettings,
   addSessionSlot,
-  reserveSessionSlot
+  reserveSessionSlot,
+  handleSubmitStudentReview
 }: {
   currentUser: User;
   courseRecords: { courseId: string; status: CourseProgressStatus; registeredAt: string; id: string }[];
@@ -401,8 +463,9 @@ function LearnerDashboard({
   tutors: User[];
   sessionSlots: SessionSlot[];
   sessionSettings: SessionSettings;
-  addSessionSlot: (slot: Omit<SessionSlot, "id">) => void;
+  addSessionSlot: (slot: Omit<SessionSlot, "id">) => { ok: boolean; message: string };
   reserveSessionSlot: (slotId: string, learnerName: string, notes?: string) => void;
+  handleSubmitStudentReview: (e: FormEvent<HTMLFormElement>) => void;
 }) {
   const statusCounts = courseRecords.reduce<Record<CourseProgressStatus, number>>(
     (acc, record) => ({ ...acc, [record.status]: acc[record.status] + 1 }),
@@ -481,6 +544,24 @@ function LearnerDashboard({
         reserveSessionSlot={reserveSessionSlot}
       />
 
+      <div className="card">
+        <h3>Leave A Review</h3>
+        <form onSubmit={handleSubmitStudentReview}>
+          <label>Rating
+            <select name="rating" defaultValue="5">
+              <option value="5">5 stars</option>
+              <option value="4">4 stars</option>
+              <option value="3">3 stars</option>
+              <option value="2">2 stars</option>
+              <option value="1">1 star</option>
+            </select>
+          </label>
+          <label>Review<textarea name="text" rows={3} required /></label>
+          <button className="primary" type="submit">Submit For Approval</button>
+        </form>
+        <p className="muted">Reviews appear on the home page after admin approval.</p>
+      </div>
+
       <div className="card" id="student-request-history">
         <h3>My Booking Requests</h3>
         {requests.length ? (
@@ -521,7 +602,7 @@ function TutorDashboard({
   sessionSettings: SessionSettings;
   tutors: User[];
   updateRequestStatus: (requestId: string, status: "replied" | "closed") => void;
-  addSessionSlot: (slot: Omit<SessionSlot, "id">) => void;
+  addSessionSlot: (slot: Omit<SessionSlot, "id">) => { ok: boolean; message: string };
   updateSessionSlotStatus: (slotId: string, status: SessionSlotStatus) => void;
   reserveSessionSlot: (slotId: string, learnerName: string, notes?: string) => void;
   deleteSessionSlot: (slotId: string) => void;
@@ -620,44 +701,74 @@ function SessionCalendarCard({
   tutors: User[];
   sessionSlots: SessionSlot[];
   sessionSettings: SessionSettings;
-  addSessionSlot?: (slot: Omit<SessionSlot, "id">) => void;
+  addSessionSlot?: (slot: Omit<SessionSlot, "id">) => { ok: boolean; message: string };
   updateSessionSlotStatus?: (slotId: string, status: SessionSlotStatus) => void;
   reserveSessionSlot: (slotId: string, learnerName: string, notes?: string) => void;
   deleteSessionSlot?: (slotId: string) => void;
   updateSessionSettings?: (settings: SessionSettings) => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+  const currentMonthDate = new Date();
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedSlotId, setSelectedSlotId] = useState("");
-  const [defaultAvailableDate, setDefaultAvailableDate] = useState("");
+  const [dayDetailDate, setDayDetailDate] = useState("");
   const [addingSlot, setAddingSlot] = useState(false);
+  const [calendarFeedback, setCalendarFeedback] = useState("");
+  const [monthOffset, setMonthOffset] = useState(0);
   const isAdmin = currentUser.role === "admin";
   const isTutor = currentUser.role === "tutor";
   const canManageSlots = isAdmin || isTutor;
+  const activeMonth = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + monthOffset, 1);
   const visibleSlots = sessionSlots
     .filter((slot) => isAdmin || !isTutor || slot.tutorId === currentUser.id)
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
   const selectedDateSlots = visibleSlots.filter((slot) => slot.date === selectedDate);
   const selectedSlot = selectedSlotId ? visibleSlots.find((slot) => slot.id === selectedSlotId) : undefined;
-  const calendarDays = Array.from({ length: 14 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() + index);
-    return date.toISOString().slice(0, 10);
-  });
+  const calendarDays = monthDates(activeMonth);
+  const startOptions = Array.from(
+    { length: Math.max(sessionSettings.dayEndHour - sessionSettings.dayStartHour, 1) },
+    (_, index) => formatHour(sessionSettings.dayStartHour + index)
+  );
+  const selectedSessionTypes = sessionSettings.sessionTypes.length
+    ? sessionSettings.sessionTypes
+    : [{ id: "default-session-type", purpose: "Tutoring Session", durationMinutes: sessionSettings.slotDurationMinutes }];
+
+  function durationForPurpose(purpose: string): number {
+    return selectedSessionTypes.find((type) => type.purpose === purpose)?.durationMinutes ?? sessionSettings.slotDurationMinutes;
+  }
+
+  function availableStartOptions(date: string, tutorId: string, purpose: string): string[] {
+    const durationMinutes = durationForPurpose(purpose);
+    const maxEndMinutes = sessionSettings.dayEndHour * 60;
+    return startOptions.filter((startTime) => {
+      const candidate = { startTime, endTime: calculateEndTime(startTime, durationMinutes) };
+      if (timeToMinutes(candidate.endTime) > maxEndMinutes) return false;
+      return !sessionSlots.some((slot) => (
+        slot.tutorId === tutorId &&
+        slot.date === date &&
+        slotsOverlap(slot, candidate)
+      ));
+    });
+  }
 
   function handleAddSlot(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!addSessionSlot || !canManageSlots) return;
     const fd = new FormData(e.currentTarget);
-    addSessionSlot({
+    const purpose = String(fd.get("purpose") ?? selectedSessionTypes[0]?.purpose ?? "Tutoring Session");
+    const startTime = String(fd.get("startTime") ?? "");
+    const result = addSessionSlot({
       tutorId: isAdmin ? String(fd.get("tutorId") ?? "") : currentUser.id,
       date: String(fd.get("date") ?? selectedDate),
-      startTime: String(fd.get("startTime") ?? ""),
-      endTime: String(fd.get("endTime") ?? ""),
+      startTime,
+      endTime: calculateEndTime(startTime, durationForPurpose(purpose)),
+      purpose,
       status: String(fd.get("status") ?? "available") as SessionSlotStatus,
       learnerName: String(fd.get("learnerName") ?? "").trim(),
       notes: String(fd.get("notes") ?? "").trim()
     });
+    setCalendarFeedback(result.message);
+    if (!result.ok) return;
     e.currentTarget.reset();
     setAddingSlot(false);
     setSelectedSlotId("");
@@ -690,33 +801,11 @@ function SessionCalendarCard({
   }
 
   function handleCalendarDayClick(date: string): void {
-    const slots = visibleSlots.filter((slot) => slot.date === date);
-    const firstAvailable = slots.find((slot) => getSlotStatus(slot) === "available");
-    const firstReserved = slots.find((slot) => getSlotStatus(slot) === "reserved");
-
     setSelectedDate(date);
+    setSelectedSlotId("");
     setAddingSlot(false);
-    setDefaultAvailableDate("");
-
-    if (canManageSlots) {
-      if (firstReserved && !firstAvailable) {
-        setSelectedSlotId(firstReserved.id);
-        return;
-      }
-      if (firstAvailable) {
-        setSelectedSlotId(firstAvailable.id);
-        return;
-      }
-      setAddingSlot(true);
-      return;
-    }
-
-    if (firstAvailable) {
-      setSelectedSlotId(firstAvailable.id);
-      return;
-    }
-
-    setDefaultAvailableDate(date);
+    setCalendarFeedback("");
+    setDayDetailDate(date);
   }
 
   function getSlotStatus(slot: SessionSlot): SessionSlotStatus {
@@ -736,66 +825,130 @@ function SessionCalendarCard({
 
   function closeDetails(): void {
     setSelectedSlotId("");
-    setDefaultAvailableDate("");
+    setDayDetailDate("");
     setAddingSlot(false);
+    setCalendarFeedback("");
   }
 
   function handleDefaultReservation(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!addSessionSlot) return;
     const fd = new FormData(e.currentTarget);
-    addSessionSlot({
-      tutorId: tutors[0]?.id ?? currentUser.id,
-      date: defaultAvailableDate,
-      startTime: String(fd.get("startTime") ?? ""),
-      endTime: String(fd.get("endTime") ?? "") || calculateEndTime(String(fd.get("startTime") ?? "")),
+    const tutorId = String(fd.get("tutorId") ?? tutors[0]?.id ?? currentUser.id);
+    const purpose = String(fd.get("purpose") ?? selectedSessionTypes[0]?.purpose ?? "Tutoring Session");
+    const startTime = String(fd.get("startTime") ?? "");
+    const result = addSessionSlot({
+      tutorId,
+      date: dayDetailDate,
+      startTime,
+      endTime: calculateEndTime(startTime, durationForPurpose(purpose)),
+      purpose,
       status: "reserved",
       learnerName: String(fd.get("learnerName") ?? currentUser.name).trim() || currentUser.name,
       notes: String(fd.get("notes") ?? "").trim()
     });
+    setCalendarFeedback(result.message);
+    if (!result.ok) return;
     closeDetails();
-  }
-
-  function calculateEndTime(startTime: string): string {
-    if (!startTime) return "";
-    const [hours, minutes] = startTime.split(":").map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes + sessionSettings.slotDurationMinutes, 0, 0);
-    return date.toTimeString().slice(0, 5);
   }
 
   function handleSessionSettings(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!updateSessionSettings) return;
     const fd = new FormData(e.currentTarget);
+    const purposes = fd.getAll("sessionPurpose").map((value) => String(value).trim());
+    const durations = fd.getAll("sessionDuration").map((value) => Number(value));
+    const sessionTypes: SessionType[] = purposes
+      .map((purpose, index) => ({
+        id: sessionSettings.sessionTypes[index]?.id ?? `${purpose || "session"}-${index}`,
+        purpose,
+        durationMinutes: durations[index] || sessionSettings.slotDurationMinutes
+      }))
+      .filter((type) => type.purpose);
     updateSessionSettings({
       defaultDailySlots: Number(fd.get("defaultDailySlots") ?? sessionSettings.defaultDailySlots),
-      slotDurationMinutes: Number(fd.get("slotDurationMinutes") ?? sessionSettings.slotDurationMinutes)
+      slotDurationMinutes: Number(fd.get("slotDurationMinutes") ?? sessionSettings.slotDurationMinutes),
+      dayStartHour: Number(fd.get("dayStartHour") ?? sessionSettings.dayStartHour),
+      dayEndHour: Number(fd.get("dayEndHour") ?? sessionSettings.dayEndHour),
+      sessionTypes
     });
+    setCalendarFeedback("Calendar settings saved.");
   }
 
-  if (defaultAvailableDate) {
+  if (dayDetailDate) {
+    const reservableTutors = tutors.length ? tutors : [currentUser];
+    const initialPurpose = selectedSessionTypes[0]?.purpose ?? "Tutoring Session";
+    const daySlots = visibleSlots.filter((slot) => slot.date === dayDetailDate);
+    const reservedSlots = daySlots.filter((slot) => getSlotStatus(slot) === "reserved");
+    const availableCount = getDayCounts(dayDetailDate).available;
+    const availableStarts = availableStartOptions(dayDetailDate, reservableTutors[0]?.id ?? currentUser.id, initialPurpose);
+    const canReserveAnother = availableCount > 0 && availableStarts.length > 0;
+
     return (
       <div className="session-modal-backdrop">
         <div className="card session-modal">
-          <h3>Available Day</h3>
-          <p className="muted">{defaultAvailableDate} is available by default. Choose your preferred time to reserve it.</p>
-          <form onSubmit={handleDefaultReservation}>
-            <label>Your Name<input name="learnerName" defaultValue={currentUser.name} required /></label>
-            <label>Start Time<input name="startTime" type="time" required /></label>
-            <label>End Time<input name="endTime" type="time" /></label>
-            <p className="muted">Default slot duration is {sessionSettings.slotDurationMinutes} minutes.</p>
-            <label>Reservation Notes<textarea name="notes" rows={2} placeholder="Subject, goal, or timing note" /></label>
-            <div className="row">
-              <button className="primary" type="submit">Save Reservation</button>
-              <button type="button" onClick={closeDetails}>Back To Calendar</button>
+          <h3>Sessions For {dayDetailDate}</h3>
+          <p className="muted">{availableCount} available | {reservedSlots.length} reserved</p>
+
+          <div className="grid-2">
+            <div>
+              <h4>Reserved Sessions</h4>
+              <div className="calendar-slots compact">
+                {reservedSlots.length ? reservedSlots.map((slot) => (
+                  <button
+                    className="calendar-slot-button reserved"
+                    type="button"
+                    key={slot.id}
+                    onClick={() => {
+                      setDayDetailDate("");
+                      setSelectedSlotId(slot.id);
+                    }}
+                  >
+                    <strong>{slot.startTime} - {slot.endTime}</strong>
+                    <span>{tutorName(slot.tutorId)} | {slot.purpose ?? "Tutoring Session"}</span>
+                  </button>
+                )) : (
+                  <p className="muted">No reserved sessions for this date.</p>
+                )}
+              </div>
             </div>
-          </form>
-          <p>
-            <a className="inline-action" href={calendlyUrl} target="_blank" rel="noreferrer">
-              Open Calendly Booking Page
-            </a>
-          </p>
+
+            <div>
+              <h4>Reserve Available Time</h4>
+              {canReserveAnother ? (
+                <>
+                  <iframe className="calendly-frame small" title="Calendly booking" src={calendlyUrl}></iframe>
+                  <form onSubmit={handleDefaultReservation}>
+                    <label>Your Name<input name="learnerName" defaultValue={currentUser.name} required /></label>
+                    <label>Tutor
+                      <select name="tutorId" required>
+                        {reservableTutors.map((tutor) => <option key={tutor.id} value={tutor.id}>{tutor.name}</option>)}
+                      </select>
+                    </label>
+                    <label>Purpose
+                      <select name="purpose" defaultValue={initialPurpose} required>
+                        {selectedSessionTypes.map((type) => (
+                          <option key={type.id} value={type.purpose}>{type.purpose} ({type.durationMinutes} min)</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>Start Time
+                      <select name="startTime" required>
+                        {availableStarts.map((time) => <option key={time} value={time}>{time}</option>)}
+                      </select>
+                    </label>
+                    <label>Reservation Notes<textarea name="notes" rows={2} placeholder="Subject, goal, or timing note" /></label>
+                    <button className="primary" type="submit">Validate Choice</button>
+                  </form>
+                </>
+              ) : (
+                <p className="muted">All available sessions for this date are already reserved.</p>
+              )}
+            </div>
+          </div>
+
+          <button type="button" onClick={closeDetails}>Back To Calendar</button>
+          <p className={`feedback ${calendarFeedback ? "error" : ""}`}>{calendarFeedback}</p>
         </div>
       </div>
     );
@@ -808,9 +961,13 @@ function SessionCalendarCard({
         <div className="card session-modal">
           <h3>{selectedStatus === "reserved" ? "Reservation Detail" : "Available Slot"}</h3>
           <p className="muted">{selectedSlot.date} | {selectedSlot.startTime} - {selectedSlot.endTime}</p>
+          {isSlotLocked(selectedSlot) && selectedStatus === "reserved" ? (
+            <p className="feedback error">This reservation is locked less than 24 hours before start time and cannot be cancelled.</p>
+          ) : null}
           <div className={`calendar-slot ${selectedStatus}`}>
             <div>
               <strong>{tutorName(selectedSlot.tutorId)}</strong>
+              <p>Purpose: {selectedSlot.purpose ?? "Tutoring Session"}</p>
               <p>Status: {selectedStatus}</p>
               {selectedSlot.learnerName ? <p>Learner: {selectedSlot.learnerName}</p> : null}
               {selectedSlot.notes ? <p>{selectedSlot.notes}</p> : null}
@@ -820,17 +977,13 @@ function SessionCalendarCard({
             <form onSubmit={(e) => handleReserveSlot(e, selectedSlot)}>
               <label>Your Name<input name="learnerName" defaultValue={currentUser.name} required /></label>
               <label>Reservation Notes<textarea name="notes" rows={2} placeholder="Subject, goal, or timing note" /></label>
-              <button className="primary" type="submit">Save Reservation</button>
+              <iframe className="calendly-frame small" title="Calendly booking" src={calendlyUrl}></iframe>
+              <button className="primary" type="submit">Validate Choice</button>
             </form>
           ) : null}
-          <p>
-            <a className="inline-action" href={calendlyUrl} target="_blank" rel="noreferrer">
-              Open Calendly Booking Page
-            </a>
-          </p>
           <div className="row">
             {canManageSlots && updateSessionSlotStatus ? (
-              <button className="primary" type="button" onClick={() => {
+              <button className="primary" type="button" disabled={selectedStatus === "reserved" && isSlotLocked(selectedSlot)} onClick={() => {
                 updateSessionSlotStatus(selectedSlot.id, selectedStatus === "reserved" ? "available" : "reserved");
                 closeDetails();
               }}>
@@ -838,7 +991,7 @@ function SessionCalendarCard({
               </button>
             ) : null}
             {canManageSlots && deleteSessionSlot ? (
-              <button className="danger" type="button" onClick={() => {
+              <button className="danger" type="button" disabled={isSlotLocked(selectedSlot)} onClick={() => {
                 deleteSessionSlot(selectedSlot.id);
                 closeDetails();
               }}>Delete Slot</button>
@@ -851,6 +1004,7 @@ function SessionCalendarCard({
   }
 
   if (addingSlot && canManageSlots) {
+    const initialPurpose = selectedSessionTypes[0]?.purpose ?? "Tutoring Session";
     return (
       <div className="card">
         <h3>Add Session Slot</h3>
@@ -866,8 +1020,18 @@ function SessionCalendarCard({
             </label>
           ) : null}
           <label>Date<input name="date" type="date" defaultValue={selectedDate} required /></label>
-          <label>Start Time<input name="startTime" type="time" required /></label>
-          <label>End Time<input name="endTime" type="time" required /></label>
+          <label>Purpose
+            <select name="purpose" defaultValue={initialPurpose} required>
+              {selectedSessionTypes.map((type) => (
+                <option key={type.id} value={type.purpose}>{type.purpose} ({type.durationMinutes} min)</option>
+              ))}
+            </select>
+          </label>
+          <label>Start Time
+            <select name="startTime" required>
+              {startOptions.map((time) => <option key={time} value={time}>{time}</option>)}
+            </select>
+          </label>
           <label>Status
             <select name="status" defaultValue="available">
               <option value="available">Available</option>
@@ -881,6 +1045,7 @@ function SessionCalendarCard({
             <button type="button" onClick={closeDetails}>Back To Calendar</button>
           </div>
         </form>
+        <p className={`feedback ${calendarFeedback ? "error" : ""}`}>{calendarFeedback}</p>
       </div>
     );
   }
@@ -888,12 +1053,12 @@ function SessionCalendarCard({
   return (
     <div className="card">
       <h3>Session Calendar</h3>
-      <p className="muted">Each day has {sessionSettings.defaultDailySlots} slots by default. Each slot is {sessionSettings.slotDurationMinutes} minutes.</p>
-      <p>
-        <a className="inline-action" href={calendlyUrl} target="_blank" rel="noreferrer">
-          Open Calendly Booking Page
-        </a>
-      </p>
+      <p className="muted">Default schedule: {sessionSettings.defaultDailySlots} sessions per day, {formatHour(sessionSettings.dayStartHour)} to {formatHour(sessionSettings.dayEndHour)}. Cancellations lock 24 hours before start.</p>
+      <div className="row calendar-nav">
+        <button type="button" onClick={() => setMonthOffset((value) => value - 1)}>Previous</button>
+        <strong>{activeMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</strong>
+        <button type="button" onClick={() => setMonthOffset((value) => value + 1)}>Next</button>
+      </div>
 
       <div className="calendar-overview">
         {calendarDays.map((date) => {
@@ -917,8 +1082,16 @@ function SessionCalendarCard({
 
       {canManageSlots && updateSessionSettings ? (
         <form className="calendar-settings" onSubmit={handleSessionSettings}>
-          <label>Slots Per Day<input name="defaultDailySlots" type="number" min={1} defaultValue={sessionSettings.defaultDailySlots} required /></label>
+          <label>Max Sessions Per Day<input name="defaultDailySlots" type="number" min={1} defaultValue={sessionSettings.defaultDailySlots} required /></label>
           <label>Slot Duration Minutes<input name="slotDurationMinutes" type="number" min={15} step={15} defaultValue={sessionSettings.slotDurationMinutes} required /></label>
+          <label>Start Hour<input name="dayStartHour" type="number" min={0} max={23} defaultValue={sessionSettings.dayStartHour} required /></label>
+          <label>End Hour<input name="dayEndHour" type="number" min={1} max={24} defaultValue={sessionSettings.dayEndHour} required /></label>
+          {selectedSessionTypes.map((type) => (
+            <div className="session-type-row" key={type.id}>
+              <label>Session Purpose<input name="sessionPurpose" defaultValue={type.purpose} required /></label>
+              <label>Duration Minutes<input name="sessionDuration" type="number" min={15} step={15} defaultValue={type.durationMinutes} required /></label>
+            </div>
+          ))}
           <button type="submit">Save Calendar Settings</button>
         </form>
       ) : null}
@@ -932,16 +1105,17 @@ function SessionCalendarCard({
             onClick={() => setSelectedSlotId(slot.id)}
           >
             <strong>{slot.startTime} - {slot.endTime}</strong>
-            <span>{tutorName(slot.tutorId)} | {getSlotStatus(slot)}</span>
+            <span>{tutorName(slot.tutorId)} | {slot.purpose ?? "Tutoring Session"} | {getSlotStatus(slot)}</span>
           </button>
         )) : (
-          <p className="muted">No slots for this date.</p>
+          <p className="muted">No saved slots for this date. Available sessions are created when a user validates a time.</p>
         )}
       </div>
 
       {canManageSlots ? (
         <button className="primary" type="button" onClick={() => setAddingSlot(true)}>Add Slot</button>
       ) : null}
+      <p className="feedback">{calendarFeedback}</p>
     </div>
   );
 }
@@ -973,11 +1147,11 @@ function ManageCoursesCard({
       </form>
       <div className="list">
         {courses.map((course) => (
-          <div className="list-item" key={course.id}>
-            <strong>{course.title}</strong> <span className="muted">({course.category})</span>
+          <details className="list-item course-detail" key={course.id}>
+            <summary><strong>{course.title}</strong> <span className="muted">({course.category})</span></summary>
             <p>{course.description}</p>
             <button className="danger" type="button" onClick={() => onDelete(course.id)}>Delete</button>
-          </div>
+          </details>
         ))}
       </div>
     </div>
@@ -987,10 +1161,12 @@ function ManageCoursesCard({
 function ReviewsCard({
   reviews,
   handleAddReview,
+  approveReview,
   deleteReview
 }: {
   reviews: Review[];
   handleAddReview: (e: FormEvent<HTMLFormElement>) => void;
+  approveReview: (reviewId: string) => void;
   deleteReview: (reviewId: string) => void;
 }) {
   return (
@@ -1006,7 +1182,11 @@ function ReviewsCard({
         {reviews.map((review) => (
           <div className="list-item" key={review.id}>
             <strong>{review.name}</strong> <StarRating rating={Number(review.rating)} />
+            <p className="muted">Status: {review.status ?? "approved"}</p>
             <p>{review.text}</p>
+            {review.status === "pending" ? (
+              <button type="button" onClick={() => approveReview(review.id)}>Approve</button>
+            ) : null}
             <button className="danger" type="button" onClick={() => deleteReview(review.id)}>Delete</button>
           </div>
         ))}

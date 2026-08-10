@@ -91,8 +91,6 @@ export default function AuthPage() {
             <select name="role" required>
               <option value="student">Student</option>
               <option value="parent">Parent</option>
-              <option value="tutor">Tutor</option>
-              <option value="admin">Admin</option>
             </select>
           </label>
           <button className="primary" type="submit" disabled={signupLoading}>{signupLoading ? "Creating..." : "Create Account"}</button>

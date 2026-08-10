@@ -3,7 +3,7 @@ import { testQuestions } from "../data/testQuestions";
 import { apiClient } from "../clients/apiClient";
 import { uid } from "../lib/id";
 import { loadDB, saveDB } from "../lib/storage";
-import type { Course, CourseProgressStatus, DB, LearnerCourseRecord, SelectableOptionKey, SelectableOptions, SessionSettings, SessionSlot, SessionSlotStatus, User } from "../types";
+import type { Course, CourseProgressStatus, DB, LearnerCourseRecord, SelectableOptionKey, SelectableOptions, SessionSettings, SessionSlot, SessionSlotStatus, SessionType, User } from "../types";
 
 interface ContactPayload {
   name: string;
@@ -48,9 +48,12 @@ interface LoginResponse {
   dbUser: BackendUser;
 }
 
+type SharedContent = Pick<DB, "courses" | "examPrepTracks" | "reviews" | "faq" | "learnerCourses" | "sessionSlots" | "sessionSettings" | "requests">;
+
 interface SettingsResponse {
   message?: string;
   selectableOptions: SelectableOptions;
+  content?: Partial<SharedContent>;
 }
 
 interface AppContextValue {
@@ -67,10 +70,13 @@ interface AppContextValue {
   addCourse: (course: Omit<Course, "id">) => void;
   updateCourse: (courseId: string, course: Omit<Course, "id">) => void;
   deleteCourse: (courseId: string) => void;
+  addExamPrepTrack: (course: Omit<Course, "id">) => void;
+  updateExamPrepTrack: (courseId: string, course: Omit<Course, "id">) => void;
+  deleteExamPrepTrack: (courseId: string) => void;
   assignCourseToLearner: (payload: Omit<LearnerCourseRecord, "id" | "registeredAt">) => { ok: boolean; message: string };
   updateLearnerCourseStatus: (recordId: string, status: CourseProgressStatus) => void;
   deleteLearnerCourse: (recordId: string) => void;
-  addSessionSlot: (slot: Omit<SessionSlot, "id">) => void;
+  addSessionSlot: (slot: Omit<SessionSlot, "id">) => { ok: boolean; message: string };
   updateSessionSlotStatus: (slotId: string, status: SessionSlotStatus) => void;
   reserveSessionSlot: (slotId: string, learnerName: string, notes?: string) => void;
   deleteSessionSlot: (slotId: string) => void;
@@ -78,6 +84,8 @@ interface AppContextValue {
   createTutor: (payload: { name: string; email: string; password: string }) => Promise<{ ok: boolean; message: string }>;
   resetLearnerAccount: (email: string) => Promise<{ ok: boolean; message: string }>;
   addReview: (name: string, rating: number, text: string) => void;
+  addPendingReview: (name: string, rating: number, text: string) => void;
+  approveReview: (reviewId: string) => void;
   deleteReview: (reviewId: string) => void;
   addFaq: (question: string, answer: string) => void;
   deleteFaq: (faqId: string) => void;
@@ -127,8 +135,64 @@ function cleanOption(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
+function notifySessionRequest(payload: {
+  learnerName: string;
+  tutorId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  notes?: string;
+}): void {
+  apiClient.post("/settings/session-request-notification", payload).catch((err) => {
+    console.warn("Failed to send session request notification:", err);
+  });
+}
+
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+  return hours * 60 + minutes;
+}
+
+function slotsOverlap(a: Pick<SessionSlot, "startTime" | "endTime">, b: Pick<SessionSlot, "startTime" | "endTime">): boolean {
+  const aStart = timeToMinutes(a.startTime);
+  const aEnd = timeToMinutes(a.endTime);
+  const bStart = timeToMinutes(b.startTime);
+  const bEnd = timeToMinutes(b.endTime);
+  return aStart < bEnd && bStart < aEnd;
+}
+
+function defaultSessionTypes(): SessionType[] {
+  return [
+    { id: "session-type-course-support", purpose: "Course Support", durationMinutes: 90 },
+    { id: "session-type-exam-prep", purpose: "Exam Prep", durationMinutes: 120 },
+    { id: "session-type-assessment-review", purpose: "Assessment Review", durationMinutes: 60 }
+  ];
+}
+
+function normalizeSessionSettings(settings?: Partial<SessionSettings>): SessionSettings {
+  const sessionTypes = settings?.sessionTypes?.length ? settings.sessionTypes : defaultSessionTypes();
+  return {
+    defaultDailySlots: Math.max(1, Math.round(settings?.defaultDailySlots ?? 8)),
+    slotDurationMinutes: Math.max(15, Math.round(settings?.slotDurationMinutes ?? 90)),
+    dayStartHour: Math.min(23, Math.max(0, Math.round(settings?.dayStartHour ?? 8))),
+    dayEndHour: Math.min(24, Math.max(1, Math.round(settings?.dayEndHour ?? 20))),
+    sessionTypes: sessionTypes.map((type) => ({
+      id: type.id || uid(),
+      purpose: type.purpose.trim() || "Tutoring Session",
+      durationMinutes: Math.max(15, Math.round(type.durationMinutes))
+    }))
+  };
+}
+
+function isSlotLocked(slot: Pick<SessionSlot, "date" | "startTime">): boolean {
+  const sessionDate = new Date(`${slot.date}T${slot.startTime}:00`);
+  return sessionDate.getTime() - Date.now() < 24 * 60 * 60 * 1000;
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [db, setDB] = useState<DB>(() => loadDB());
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   useEffect(() => {
     saveDB(db);
@@ -142,10 +206,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         updateDB((draft) => {
           draft.selectableOptions = response.data.selectableOptions;
+          if (response.data.content) {
+            draft.courses = response.data.content.courses?.length ? response.data.content.courses : draft.courses;
+            draft.examPrepTracks = response.data.content.examPrepTracks?.length ? response.data.content.examPrepTracks : draft.examPrepTracks;
+            draft.reviews = response.data.content.reviews?.length ? response.data.content.reviews : draft.reviews;
+            draft.faq = response.data.content.faq?.length ? response.data.content.faq : draft.faq;
+            draft.learnerCourses = response.data.content.learnerCourses ?? draft.learnerCourses;
+            draft.sessionSlots = response.data.content.sessionSlots ?? draft.sessionSlots;
+            draft.sessionSettings = normalizeSessionSettings(response.data.content.sessionSettings ?? draft.sessionSettings);
+            draft.requests = response.data.content.requests ?? draft.requests;
+          }
         });
+        setSettingsLoaded(true);
       })
       .catch((err) => {
         console.warn("Failed to load site settings:", err);
+        setSettingsLoaded(true);
       });
 
     return () => {
@@ -153,8 +229,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!settingsLoaded || !localStorage.getItem("peertrack_token")) return;
+
+    const content: SharedContent = {
+      courses: db.courses,
+      examPrepTracks: db.examPrepTracks,
+      reviews: db.reviews,
+      faq: db.faq,
+      learnerCourses: db.learnerCourses,
+      sessionSlots: db.sessionSlots,
+      sessionSettings: db.sessionSettings,
+      requests: db.requests
+    };
+
+    const timer = window.setTimeout(() => {
+      apiClient.put("/settings/content", { content }).catch((err) => {
+        console.warn("Failed to sync shared content:", err);
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    db.courses,
+    db.examPrepTracks,
+    db.faq,
+    db.learnerCourses,
+    db.requests,
+    db.reviews,
+    db.sessionSettings,
+    db.sessionSlots,
+    settingsLoaded
+  ]);
+
   const currentUser = useMemo(() => db.users.find((u) => u.id === db.currentUserId) ?? null, [db.users, db.currentUserId]);
-  const canUseAssessment = currentUser?.role === "student" || currentUser?.role === "parent";
+  const canUseAssessment = currentUser?.role === "student" || currentUser?.role === "parent" || currentUser?.role === "admin";
 
   function updateDB(mutator: (draft: DB) => void): void {
     setDB((prev) => {
@@ -323,12 +432,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
         existingCourse.description = course.description;
       }
     });
+
   }
 
   function deleteCourse(courseId: string): void {
     updateDB((draft) => {
       draft.courses = draft.courses.filter((c) => c.id !== courseId);
       draft.learnerCourses = draft.learnerCourses.filter((record) => record.courseId !== courseId);
+    });
+  }
+
+  function addExamPrepTrack(course: Omit<Course, "id">): void {
+    updateDB((draft) => {
+      draft.examPrepTracks.push({ id: uid(), ...course });
+    });
+  }
+
+  function updateExamPrepTrack(courseId: string, course: Omit<Course, "id">): void {
+    updateDB((draft) => {
+      const existingCourse = draft.examPrepTracks.find((item) => item.id === courseId);
+      if (existingCourse) {
+        existingCourse.title = course.title;
+        existingCourse.category = course.category;
+        existingCourse.description = course.description;
+      }
+    });
+  }
+
+  function deleteExamPrepTrack(courseId: string): void {
+    updateDB((draft) => {
+      draft.examPrepTracks = draft.examPrepTracks.filter((course) => course.id !== courseId);
     });
   }
 
@@ -365,16 +498,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  function addSessionSlot(slot: Omit<SessionSlot, "id">): void {
+  function addSessionSlot(slot: Omit<SessionSlot, "id">): { ok: boolean; message: string } {
+    if (!slot.tutorId) return { ok: false, message: "Please select a tutor." };
+    if (!slot.date || !slot.startTime || !slot.endTime) {
+      return { ok: false, message: "Please select date, start time, and duration." };
+    }
+    if (timeToMinutes(slot.endTime) <= timeToMinutes(slot.startTime)) {
+      return { ok: false, message: "The session end time must be after the start time." };
+    }
+    const hasConflict = db.sessionSlots.some((existingSlot) => (
+      existingSlot.tutorId === slot.tutorId &&
+      existingSlot.date === slot.date &&
+      slotsOverlap(existingSlot, slot)
+    ));
+
+    if (hasConflict) {
+      return { ok: false, message: "This tutor already has a session during that time. Choose another time." };
+    }
+
     updateDB((draft) => {
-      draft.sessionSlots.push({ id: uid(), ...slot });
+      const slotId = uid();
+      draft.sessionSlots.push({ id: slotId, ...slot });
+      if (slot.status === "reserved" && slot.learnerName) {
+        draft.requests.push({
+          id: uid(),
+          userId: currentUser?.id ?? null,
+          name: slot.learnerName,
+          contactMethod: "Email",
+          email: currentUser?.email ?? "",
+          phone: "",
+          serviceType: "Session Request",
+          subject: "Calendar reservation",
+          urgencyWindow: "",
+          isUrgent: "No",
+          hardTopics: "",
+          preferredSlot: `${slot.date} ${slot.startTime}-${slot.endTime}`,
+          earliestDate: slot.date,
+          message: slot.notes || `Session reservation requested for ${slot.date} ${slot.startTime}-${slot.endTime}.`,
+          consultation: true,
+          status: "new",
+          createdAt: new Date().toISOString()
+        });
+      }
     });
+
+    if (slot.status === "reserved" && slot.learnerName) {
+      notifySessionRequest({
+        learnerName: slot.learnerName,
+        tutorId: slot.tutorId,
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        notes: slot.notes
+      });
+    }
+
+    return { ok: true, message: slot.status === "reserved" ? "Session reserved." : "Session slot added." };
   }
 
   function updateSessionSlotStatus(slotId: string, status: SessionSlotStatus): void {
     updateDB((draft) => {
       const slot = draft.sessionSlots.find((item) => item.id === slotId);
-      if (slot) slot.status = status;
+      if (!slot) return;
+      if (slot.status === "reserved" && status === "available" && isSlotLocked(slot)) return;
+      slot.status = status;
     });
   }
 
@@ -385,22 +572,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
         slot.status = "reserved";
         slot.learnerName = learnerName;
         if (notes.trim()) slot.notes = notes.trim();
+        draft.requests.push({
+          id: uid(),
+          userId: currentUser?.id ?? null,
+          name: learnerName,
+          contactMethod: "Email",
+          email: currentUser?.email ?? "",
+          phone: "",
+          serviceType: "Session Request",
+          subject: "Calendar reservation",
+          urgencyWindow: "",
+          isUrgent: "No",
+          hardTopics: "",
+          preferredSlot: `${slot.date} ${slot.startTime}-${slot.endTime}`,
+          earliestDate: slot.date,
+          message: notes.trim() || `Session reservation requested for ${slot.date} ${slot.startTime}-${slot.endTime}.`,
+          consultation: true,
+          status: "new",
+          createdAt: new Date().toISOString()
+        });
       }
     });
+
+    const slot = db.sessionSlots.find((item) => item.id === slotId);
+    if (slot) {
+      notifySessionRequest({
+        learnerName,
+        tutorId: slot.tutorId,
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        notes
+      });
+    }
   }
 
   function deleteSessionSlot(slotId: string): void {
     updateDB((draft) => {
-      draft.sessionSlots = draft.sessionSlots.filter((slot) => slot.id !== slotId);
+      draft.sessionSlots = draft.sessionSlots.filter((slot) => slot.id !== slotId || isSlotLocked(slot));
     });
   }
 
   function updateSessionSettings(settings: SessionSettings): void {
     updateDB((draft) => {
-      draft.sessionSettings = {
-        defaultDailySlots: Math.max(1, Math.round(settings.defaultDailySlots)),
-        slotDurationMinutes: Math.max(15, Math.round(settings.slotDurationMinutes))
-      };
+      draft.sessionSettings = normalizeSessionSettings(settings);
     });
   }
 
@@ -456,7 +671,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function addReview(name: string, rating: number, text: string): void {
     updateDB((draft) => {
-      draft.reviews.push({ id: uid(), name, rating, text });
+      draft.reviews.push({ id: uid(), name, rating, text, status: "approved" });
+    });
+  }
+
+  function addPendingReview(name: string, rating: number, text: string): void {
+    updateDB((draft) => {
+      draft.reviews.push({ id: uid(), name, rating, text, status: "pending" });
+    });
+  }
+
+  function approveReview(reviewId: string): void {
+    updateDB((draft) => {
+      const review = draft.reviews.find((item) => item.id === reviewId);
+      if (review) review.status = "approved";
     });
   }
 
@@ -541,6 +769,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addCourse,
     updateCourse,
     deleteCourse,
+    addExamPrepTrack,
+    updateExamPrepTrack,
+    deleteExamPrepTrack,
     assignCourseToLearner,
     updateLearnerCourseStatus,
     deleteLearnerCourse,
@@ -552,6 +783,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     createTutor,
     resetLearnerAccount,
     addReview,
+    addPendingReview,
+    approveReview,
     deleteReview,
     addFaq,
     deleteFaq,

@@ -9,7 +9,7 @@ const contactOptionGroups: Array<{ key: SelectableOptionKey; label: string }> = 
   { key: "urgencyFlags", label: "Urgency Choices" }
 ];
 
-type RequestStatusFilter = "all" | BookingRequest["status"];
+type RequestStatusFilter = "new" | "replied";
 
 export default function ContactPage() {
   const {
@@ -22,16 +22,19 @@ export default function ContactPage() {
     deleteSelectableOption
   } = useAppContext();
   const [feedback, setFeedback] = useState("");
-  const [statusFilter, setStatusFilter] = useState<RequestStatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<RequestStatusFilter>("new");
+  const [requestSearch, setRequestSearch] = useState("");
   const [selectedOptionGroup, setSelectedOptionGroup] = useState<SelectableOptionKey>("contactMethods");
   const isAdmin = currentUser?.role === "admin";
   const isTutor = currentUser?.role === "tutor";
 
   const filteredRequests = useMemo(() => {
     const requests = [...db.requests].reverse();
-    if (statusFilter === "all") return requests;
-    return requests.filter((request) => request.status === statusFilter);
-  }, [db.requests, statusFilter]);
+    return requests.filter((request) => (
+      request.status === statusFilter &&
+      request.name.toLowerCase().includes(requestSearch.trim().toLowerCase())
+    ));
+  }, [db.requests, requestSearch, statusFilter]);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -79,11 +82,9 @@ export default function ContactPage() {
         <h2>Contact Operations</h2>
         <p className="muted">Review booking requests and manage the choices shown in the contact form.</p>
 
-        <div className="dashboard-grid">
+        <div className="grid-2">
           <StatCard label="New" value={db.requests.filter((request) => request.status === "new").length} />
-          <StatCard label="Replied" value={db.requests.filter((request) => request.status === "replied").length} />
-          <StatCard label="Closed" value={db.requests.filter((request) => request.status === "closed").length} />
-          <StatCard label="Urgent" value={db.requests.filter((request) => request.isUrgent === "Yes").length} />
+          <StatCard label="Responded" value={db.requests.filter((request) => request.status === "replied").length} />
         </div>
 
         <div className="grid-2">
@@ -91,6 +92,8 @@ export default function ContactPage() {
             requests={filteredRequests}
             statusFilter={statusFilter}
             setStatusFilter={setStatusFilter}
+            requestSearch={requestSearch}
+            setRequestSearch={setRequestSearch}
             updateRequestStatus={updateRequestStatus}
             showContactDetails
           />
@@ -150,6 +153,8 @@ export default function ContactPage() {
           requests={filteredRequests}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
+          requestSearch={requestSearch}
+          setRequestSearch={setRequestSearch}
           updateRequestStatus={updateRequestStatus}
           showContactDetails
         />
@@ -228,26 +233,31 @@ function RequestsPanel({
   requests,
   statusFilter,
   setStatusFilter,
+  requestSearch,
+  setRequestSearch,
   updateRequestStatus,
   showContactDetails
 }: {
   requests: BookingRequest[];
   statusFilter: RequestStatusFilter;
   setStatusFilter: (status: RequestStatusFilter) => void;
+  requestSearch: string;
+  setRequestSearch: (value: string) => void;
   updateRequestStatus: (requestId: string, status: "replied" | "closed") => void;
   showContactDetails?: boolean;
 }) {
   return (
     <div className="card">
       <h3>Request Inbox</h3>
+      <div className="filters">
       <label>Status Filter
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as RequestStatusFilter)}>
-          <option value="all">All</option>
           <option value="new">New</option>
-          <option value="replied">Replied</option>
-          <option value="closed">Closed</option>
+          <option value="replied">Responded</option>
         </select>
       </label>
+      <label>Search By Name<input value={requestSearch} onChange={(e) => setRequestSearch(e.target.value)} placeholder="Student name" /></label>
+      </div>
 
       <div className="list">
         {requests.length ? requests.map((request) => (
@@ -257,13 +267,9 @@ function RequestsPanel({
               <p className="muted">{request.email} {request.phone ? `| ${request.phone}` : ""} | {request.contactMethod}</p>
             ) : null}
             <p><strong>Subject:</strong> {request.subject || "Not specified"}</p>
-            <p><strong>Urgency:</strong> {request.urgencyWindow || "Not specified"} | urgent: {request.isUrgent}</p>
             <p>{request.message}</p>
-            {request.hardTopics ? <p><strong>Hard topics:</strong> {request.hardTopics}</p> : null}
-            {request.preferredSlot ? <p><strong>Preferred slot:</strong> {request.preferredSlot}</p> : null}
             <div className="row">
-              <button type="button" onClick={() => updateRequestStatus(request.id, "replied")}>Mark Replied</button>
-              <button type="button" onClick={() => updateRequestStatus(request.id, "closed")}>Mark Closed</button>
+              <button type="button" onClick={() => updateRequestStatus(request.id, "replied")}>Mark Responded</button>
             </div>
           </div>
         )) : (

@@ -1,33 +1,23 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useAppContext } from "../context/AppContext";
 import type { Course } from "../types";
 
 export default function CoursesPage() {
   const { db, currentUser, addCourse, updateCourse, deleteCourse } = useAppContext();
-  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [feedback, setFeedback] = useState("");
   const isAdmin = currentUser?.role === "admin";
-  const categories = useMemo(() => ["All", ...db.selectableOptions.courseCategories], [db.selectableOptions.courseCategories]);
+  const categories = useMemo(() => db.selectableOptions.courseCategories, [db.selectableOptions.courseCategories]);
 
   const filteredCourses = useMemo(() => {
-    if (categoryFilter === "All") return db.courses;
+    if (!categoryFilter) return [];
     return db.courses.filter((course) => course.category === categoryFilter);
   }, [db.courses, categoryFilter]);
 
   const selectedCourse = useMemo(() => {
-    if (!filteredCourses.length) return null;
-    return filteredCourses.find((course) => course.id === selectedCourseId) ?? filteredCourses[0];
-  }, [filteredCourses, selectedCourseId]);
-
-  useEffect(() => {
-    if (!filteredCourses.length) {
-      setSelectedCourseId("");
-      return;
-    }
-    if (!filteredCourses.some((course) => course.id === selectedCourseId)) {
-      setSelectedCourseId(filteredCourses[0].id);
-    }
+    if (!selectedCourseId) return null;
+    return filteredCourses.find((course) => course.id === selectedCourseId) ?? null;
   }, [filteredCourses, selectedCourseId]);
 
   function handleAddCourse(e: FormEvent<HTMLFormElement>) {
@@ -65,7 +55,11 @@ export default function CoursesPage() {
       <div className="filters">
         <label>
           Category
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+          <select value={categoryFilter} onChange={(e) => {
+            setCategoryFilter(e.target.value);
+            setSelectedCourseId("");
+          }}>
+            <option value="">Select category</option>
             {categories.map((cat) => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
@@ -73,13 +67,14 @@ export default function CoursesPage() {
         </label>
         <label>
           Course
-          <select value={selectedCourseId} onChange={(e) => setSelectedCourseId(e.target.value)}>
+          <select value={selectedCourseId} onChange={(e) => setSelectedCourseId(e.target.value)} disabled={!categoryFilter}>
+            <option value="">{categoryFilter ? "Select course" : "Select category first"}</option>
             {filteredCourses.length ? (
               filteredCourses.map((course) => (
                 <option key={course.id} value={course.id}>{course.title}</option>
               ))
             ) : (
-              <option value="">No courses</option>
+              null
             )}
           </select>
         </label>
@@ -92,8 +87,10 @@ export default function CoursesPage() {
             <p><strong>Category:</strong> {selectedCourse.category}</p>
             <p>{selectedCourse.description}</p>
           </>
-        ) : (
+        ) : categoryFilter ? (
           <p className="muted">No courses found for this category.</p>
+        ) : (
+          <p className="muted">Select a category and course to display details.</p>
         )}
       </div>
 
@@ -119,30 +116,33 @@ export default function CoursesPage() {
             <h3>Edit Courses</h3>
             <div className="list">
               {db.courses.length ? db.courses.map((course) => (
-                <form className="list-item" key={course.id} onSubmit={(e) => handleUpdateCourse(e, course)}>
-                  <label>Title<input name="title" defaultValue={course.title} required /></label>
-                  <label>Category
-                    <select name="category" defaultValue={course.category} required>
-                      {db.selectableOptions.courseCategories.map((category) => (
-                        <option key={category}>{category}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>Topics/Description<textarea name="description" rows={2} defaultValue={course.description} required /></label>
-                  <div className="row">
-                    <button type="submit">Save</button>
-                    <button
-                      className="danger"
-                      type="button"
-                      onClick={() => {
-                        deleteCourse(course.id);
-                        setFeedback("Course deleted.");
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </form>
+                <details className="list-item course-detail" key={course.id}>
+                  <summary><strong>{course.title}</strong> <span className="muted">({course.category})</span></summary>
+                  <form onSubmit={(e) => handleUpdateCourse(e, course)}>
+                    <label>Title<input name="title" defaultValue={course.title} required /></label>
+                    <label>Category
+                      <select name="category" defaultValue={course.category} required>
+                        {db.selectableOptions.courseCategories.map((category) => (
+                          <option key={category}>{category}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>Topics/Description<textarea name="description" rows={2} defaultValue={course.description} required /></label>
+                    <div className="row">
+                      <button type="submit">Save</button>
+                      <button
+                        className="danger"
+                        type="button"
+                        onClick={() => {
+                          deleteCourse(course.id);
+                          setFeedback("Course deleted.");
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </form>
+                </details>
               )) : (
                 <p className="muted">No courses to edit.</p>
               )}

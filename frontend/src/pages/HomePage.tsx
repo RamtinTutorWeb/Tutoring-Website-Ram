@@ -51,7 +51,7 @@ export default function HomePage() {
             <h3>Student Reviews</h3>
             <div id="reviews-list" className="list">
               {db.reviews.length ? (
-                db.reviews.map((review) => (
+                db.reviews.filter((review) => review.status !== "pending").map((review) => (
                   <div className="list-item" key={review.id}>
                     <strong>{review.name}</strong> <StarRating rating={Number(review.rating)} />
                     <p>{review.text}</p>

@@ -4,7 +4,7 @@ import { useAppContext } from "../context/AppContext";
 export default function Header() {
   const { currentUser, logout } = useAppContext();
   const navigate = useNavigate();
-  const canUseAssessment = !currentUser || currentUser.role === "student" || currentUser.role === "parent";
+  const canUseAssessment = !currentUser || currentUser.role === "student" || currentUser.role === "parent" || currentUser.role === "admin";
   const contactLabel = currentUser?.role === "admin" ? "Contact Ops" : currentUser?.role === "tutor" ? "Requests" : "Contact";
 
   return (

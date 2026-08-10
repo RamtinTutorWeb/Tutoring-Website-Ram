@@ -12,9 +12,9 @@ export default function ExamPrepPage() {
   const {
     db,
     currentUser,
-    addCourse,
-    updateCourse,
-    deleteCourse,
+    addExamPrepTrack,
+    updateExamPrepTrack,
+    deleteExamPrepTrack,
     addSelectableOption,
     updateSelectableOption,
     deleteSelectableOption
@@ -22,13 +22,13 @@ export default function ExamPrepPage() {
   const [selectedOptionGroup, setSelectedOptionGroup] = useState<SelectableOptionKey>("urgencyWindows");
   const [feedback, setFeedback] = useState("");
   const isAdmin = currentUser?.role === "admin";
-  const examPrepCourses = db.courses.filter((course) => course.category === "Exam Prep");
+  const examPrepCourses = db.examPrepTracks;
 
   function handleAddTrack(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isAdmin) return;
     const fd = new FormData(e.currentTarget);
-    addCourse({
+    addExamPrepTrack({
       title: String(fd.get("title") ?? "").trim(),
       category: "Exam Prep",
       description: String(fd.get("description") ?? "").trim()
@@ -41,7 +41,7 @@ export default function ExamPrepPage() {
     e.preventDefault();
     if (!isAdmin) return;
     const fd = new FormData(e.currentTarget);
-    updateCourse(course.id, {
+    updateExamPrepTrack(course.id, {
       title: String(fd.get("title") ?? "").trim(),
       category: "Exam Prep",
       description: String(fd.get("description") ?? "").trim()
@@ -142,7 +142,7 @@ export default function ExamPrepPage() {
                       className="danger"
                       type="button"
                       onClick={() => {
-                        deleteCourse(course.id);
+                        deleteExamPrepTrack(course.id);
                         setFeedback("Exam prep track deleted.");
                       }}
                     >
@@ -157,7 +157,7 @@ export default function ExamPrepPage() {
           </div>
 
           <div className="card">
-            <h3>Edit Parameter Values</h3>
+            <h3>Parameter Values: {examOptionGroups.find((group) => group.key === selectedOptionGroup)?.label}</h3>
             <div className="list">
               {db.selectableOptions[selectedOptionGroup].map((option, index) => (
                 <form className="list-item" key={`${selectedOptionGroup}-${option}-${index}`} onSubmit={(e) => handleUpdateOption(e, index)}>

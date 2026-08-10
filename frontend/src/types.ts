@@ -14,6 +14,7 @@ export interface Review {
   name: string;
   rating: number;
   text: string;
+  status?: "pending" | "approved";
 }
 
 export interface FaqItem {
@@ -47,14 +48,24 @@ export interface SessionSlot {
   date: string;
   startTime: string;
   endTime: string;
+  purpose?: string;
   status: SessionSlotStatus;
   learnerName?: string;
   notes?: string;
 }
 
+export interface SessionType {
+  id: string;
+  purpose: string;
+  durationMinutes: number;
+}
+
 export interface SessionSettings {
   defaultDailySlots: number;
   slotDurationMinutes: number;
+  dayStartHour: number;
+  dayEndHour: number;
+  sessionTypes: SessionType[];
 }
 
 export type SelectableOptionKey =
@@ -122,6 +133,7 @@ export interface DB {
   reviews: Review[];
   faq: FaqItem[];
   courses: Course[];
+  examPrepTracks: Course[];
   learnerCourses: LearnerCourseRecord[];
   sessionSlots: SessionSlot[];
   sessionSettings: SessionSettings;

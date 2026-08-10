@@ -24,8 +24,8 @@ export function createSeedData(): DB {
     currentUserId: null,
     selectableOptions: defaultSelectableOptions,
     reviews: [
-      { id: uid(), name: "L.M.", rating: 5, text: "Clear explanations and strong structure." },
-      { id: uid(), name: "A.K.", rating: 5, text: "Helped me improve quickly before exams." }
+      { id: uid(), name: "L.M.", rating: 5, text: "Clear explanations and strong structure.", status: "approved" },
+      { id: uid(), name: "A.K.", rating: 5, text: "Helped me improve quickly before exams.", status: "approved" }
     ],
     faq: [
       {
@@ -51,7 +51,9 @@ export function createSeedData(): DB {
         title: "High School Algebra",
         category: "High School Courses",
         description: "Linear equations, functions, systems, polynomials, and graph interpretation."
-      },
+      }
+    ],
+    examPrepTracks: [
       {
         id: satCourseId,
         title: "SAT Math Prep",
@@ -73,13 +75,6 @@ export function createSeedData(): DB {
         courseId: algebraCourseId,
         status: "passed",
         registeredAt: new Date().toISOString()
-      },
-      {
-        id: uid(),
-        userId: "u3",
-        courseId: satCourseId,
-        status: "registered",
-        registeredAt: new Date().toISOString()
       }
     ],
     sessionSlots: [
@@ -89,6 +84,7 @@ export function createSeedData(): DB {
         date: new Date().toISOString().slice(0, 10),
         startTime: "17:00",
         endTime: "18:00",
+        purpose: "Course Support",
         status: "available",
         notes: "Online session"
       },
@@ -98,6 +94,7 @@ export function createSeedData(): DB {
         date: new Date().toISOString().slice(0, 10),
         startTime: "18:30",
         endTime: "19:30",
+        purpose: "Calculus Review",
         status: "reserved",
         learnerName: "Student User",
         notes: "Calculus review"
@@ -105,7 +102,14 @@ export function createSeedData(): DB {
     ],
     sessionSettings: {
       defaultDailySlots: 8,
-      slotDurationMinutes: 90
+      slotDurationMinutes: 90,
+      dayStartHour: 8,
+      dayEndHour: 20,
+      sessionTypes: [
+        { id: uid(), purpose: "Course Support", durationMinutes: 90 },
+        { id: uid(), purpose: "Exam Prep", durationMinutes: 120 },
+        { id: uid(), purpose: "Assessment Review", durationMinutes: 60 }
+      ]
     },
     requests: [],
     questionnaires: [],

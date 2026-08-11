@@ -114,7 +114,7 @@ const SiteSettingsSchema = new Schema(
     sessionSlots: { type: [sessionSlotSchema], default: [] },
     sessionSettings: {
       defaultDailySlots: { type: Number, default: 8 },
-      slotDurationMinutes: { type: Number, default: 90 },
+      slotDurationMinutes: { type: Number, default: 60 },
       dayStartHour: { type: Number, default: 8 },
       dayEndHour: { type: Number, default: 20 },
       sessionTypes: { type: [sessionTypeSchema], default: [] },

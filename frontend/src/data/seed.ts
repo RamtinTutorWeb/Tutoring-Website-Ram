@@ -18,7 +18,7 @@ export function createSeedData(): DB {
   return {
     users: [
       { id: "u1", name: "Admin User", email: "admin@site.com", password: "admin123", role: "admin" },
-      { id: "u2", name: "Tutor User", email: "tutor@site.com", password: "tutor123", role: "tutor" },
+      { id: "u2", name: "Instructor User", email: "instructor@site.com", password: "tutor123", role: "tutor" },
       { id: "u3", name: "Student User", email: "student@site.com", password: "student123", role: "student" }
     ],
     currentUserId: null,
@@ -102,13 +102,13 @@ export function createSeedData(): DB {
     ],
     sessionSettings: {
       defaultDailySlots: 8,
-      slotDurationMinutes: 90,
+      slotDurationMinutes: 60,
       dayStartHour: 8,
       dayEndHour: 20,
       sessionTypes: [
-        { id: uid(), purpose: "Course Support", durationMinutes: 90 },
+        { id: uid(), purpose: "Course Support", durationMinutes: 60 },
         { id: uid(), purpose: "Exam Prep", durationMinutes: 120 },
-        { id: uid(), purpose: "Assessment Review", durationMinutes: 60 }
+        { id: uid(), purpose: "Assessment Review", durationMinutes: 180 }
       ]
     },
     requests: [],

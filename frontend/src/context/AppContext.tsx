@@ -164,23 +164,28 @@ function slotsOverlap(a: Pick<SessionSlot, "startTime" | "endTime">, b: Pick<Ses
 
 function defaultSessionTypes(): SessionType[] {
   return [
-    { id: "session-type-course-support", purpose: "Course Support", durationMinutes: 90 },
+    { id: "session-type-course-support", purpose: "Course Support", durationMinutes: 60 },
     { id: "session-type-exam-prep", purpose: "Exam Prep", durationMinutes: 120 },
-    { id: "session-type-assessment-review", purpose: "Assessment Review", durationMinutes: 60 }
+    { id: "session-type-assessment-review", purpose: "Assessment Review", durationMinutes: 180 }
   ];
+}
+
+function normalizeSessionDuration(durationMinutes?: number): 60 | 120 | 180 {
+  if (durationMinutes === 120 || durationMinutes === 180) return durationMinutes;
+  return 60;
 }
 
 function normalizeSessionSettings(settings?: Partial<SessionSettings>): SessionSettings {
   const sessionTypes = settings?.sessionTypes?.length ? settings.sessionTypes : defaultSessionTypes();
   return {
     defaultDailySlots: Math.max(1, Math.round(settings?.defaultDailySlots ?? 8)),
-    slotDurationMinutes: Math.max(15, Math.round(settings?.slotDurationMinutes ?? 90)),
+    slotDurationMinutes: normalizeSessionDuration(settings?.slotDurationMinutes),
     dayStartHour: Math.min(23, Math.max(0, Math.round(settings?.dayStartHour ?? 8))),
     dayEndHour: Math.min(24, Math.max(1, Math.round(settings?.dayEndHour ?? 20))),
     sessionTypes: sessionTypes.map((type) => ({
       id: type.id || uid(),
       purpose: type.purpose.trim() || "Tutoring Session",
-      durationMinutes: Math.max(15, Math.round(type.durationMinutes))
+      durationMinutes: normalizeSessionDuration(type.durationMinutes)
     }))
   };
 }
@@ -263,7 +268,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   ]);
 
   const currentUser = useMemo(() => db.users.find((u) => u.id === db.currentUserId) ?? null, [db.users, db.currentUserId]);
-  const canUseAssessment = currentUser?.role === "student" || currentUser?.role === "parent" || currentUser?.role === "admin";
+  const canUseAssessment = currentUser?.role !== "admin";
 
   function updateDB(mutator: (draft: DB) => void): void {
     setDB((prev) => {
@@ -466,13 +471,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   function assignCourseToLearner(payload: Omit<LearnerCourseRecord, "id" | "registeredAt">): { ok: boolean; message: string } {
-    if (!payload.userId) return { ok: false, message: "Please select a learner." };
+    if (!payload.userId) return { ok: false, message: "Please select a student." };
     if (!payload.courseId) return { ok: false, message: "Please select a course." };
 
     const alreadyAssigned = db.learnerCourses.some(
       (record) => record.userId === payload.userId && record.courseId === payload.courseId
     );
-    if (alreadyAssigned) return { ok: false, message: "This course is already assigned to this learner." };
+    if (alreadyAssigned) return { ok: false, message: "This course is already assigned to this student." };
 
     updateDB((draft) => {
       draft.learnerCourses.push({
@@ -482,7 +487,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     });
 
-    return { ok: true, message: "Course assigned to learner." };
+    return { ok: true, message: "Course assigned to student." };
   }
 
   function updateLearnerCourseStatus(recordId: string, status: CourseProgressStatus): void {
@@ -499,7 +504,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   function addSessionSlot(slot: Omit<SessionSlot, "id">): { ok: boolean; message: string } {
-    if (!slot.tutorId) return { ok: false, message: "Please select a tutor." };
+    if (!slot.tutorId) return { ok: false, message: "Please select an instructor." };
     if (!slot.date || !slot.startTime || !slot.endTime) {
       return { ok: false, message: "Please select date, start time, and duration." };
     }
@@ -513,7 +518,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ));
 
     if (hasConflict) {
-      return { ok: false, message: "This tutor already has a session during that time. Choose another time." };
+      return { ok: false, message: "This instructor already has a session during that time. Choose another time." };
     }
 
     updateDB((draft) => {
@@ -659,7 +664,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function resetLearnerAccount(email: string): Promise<{ ok: boolean; message: string }> {
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) return { ok: false, message: "Please enter the learner email." };
+    if (!normalizedEmail) return { ok: false, message: "Please enter the student email." };
 
     try {
       const response = await apiClient.post<{ message?: string }>("/users/forgot-password", { email: normalizedEmail });

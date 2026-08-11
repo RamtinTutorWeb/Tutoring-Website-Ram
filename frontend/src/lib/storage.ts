@@ -24,22 +24,28 @@ export function loadDB(): DB {
   }));
   db.sessionSettings = db.sessionSettings ?? {
     defaultDailySlots: 8,
-    slotDurationMinutes: 90,
+    slotDurationMinutes: 60,
     dayStartHour: 8,
     dayEndHour: 20,
     sessionTypes: []
   };
   db.sessionSettings.defaultDailySlots = db.sessionSettings.defaultDailySlots ?? 8;
-  db.sessionSettings.slotDurationMinutes = db.sessionSettings.slotDurationMinutes ?? 90;
+  db.sessionSettings.slotDurationMinutes = [60, 120, 180].includes(db.sessionSettings.slotDurationMinutes)
+    ? db.sessionSettings.slotDurationMinutes
+    : 60;
   db.sessionSettings.dayStartHour = db.sessionSettings.dayStartHour ?? 8;
   db.sessionSettings.dayEndHour = db.sessionSettings.dayEndHour ?? 20;
   db.sessionSettings.sessionTypes = db.sessionSettings.sessionTypes?.length
     ? db.sessionSettings.sessionTypes
     : [
-        { id: "session-type-course-support", purpose: "Course Support", durationMinutes: 90 },
+        { id: "session-type-course-support", purpose: "Course Support", durationMinutes: 60 },
         { id: "session-type-exam-prep", purpose: "Exam Prep", durationMinutes: 120 },
-        { id: "session-type-assessment-review", purpose: "Assessment Review", durationMinutes: 60 }
+        { id: "session-type-assessment-review", purpose: "Assessment Review", durationMinutes: 180 }
       ];
+  db.sessionSettings.sessionTypes = db.sessionSettings.sessionTypes.map((type) => ({
+    ...type,
+    durationMinutes: [60, 120, 180].includes(type.durationMinutes) ? type.durationMinutes : 60
+  }));
   return db;
 }
 

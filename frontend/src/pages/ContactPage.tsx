@@ -26,7 +26,6 @@ export default function ContactPage() {
   const [requestSearch, setRequestSearch] = useState("");
   const [selectedOptionGroup, setSelectedOptionGroup] = useState<SelectableOptionKey>("contactMethods");
   const isAdmin = currentUser?.role === "admin";
-  const isTutor = currentUser?.role === "tutor";
 
   const filteredRequests = useMemo(() => {
     const requests = [...db.requests].reverse();
@@ -140,24 +139,6 @@ export default function ContactPage() {
             <p className="feedback">{feedback}</p>
           </div>
         </div>
-      </section>
-    );
-  }
-
-  if (isTutor) {
-    return (
-      <section data-page="contact" className="page">
-        <h2>Contact Requests</h2>
-        <p className="muted">Review learner requests and update follow-up status.</p>
-        <RequestsPanel
-          requests={filteredRequests}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          requestSearch={requestSearch}
-          setRequestSearch={setRequestSearch}
-          updateRequestStatus={updateRequestStatus}
-          showContactDetails
-        />
       </section>
     );
   }

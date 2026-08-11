@@ -8,11 +8,10 @@ export default function HomePage() {
   const navigate = useNavigate();
   const [faqOpenMap, setFaqOpenMap] = useState<Record<string, boolean>>({});
   const isAdmin = currentUser?.role === "admin";
-  const isTutor = currentUser?.role === "tutor";
-  const canUseAssessment = !currentUser || currentUser.role === "student" || currentUser.role === "parent";
-  const primaryAction = isAdmin || isTutor ? "/dashboard" : "/contact";
-  const primaryLabel = isAdmin ? "Open Admin Dashboard" : isTutor ? "Open Tutor Dashboard" : "Get Started";
-  const contactLabel = isAdmin ? "Open Contact Operations" : isTutor ? "Open Request Inbox" : "Contact Me";
+  const canUseAssessment = !currentUser || currentUser.role !== "admin";
+  const primaryAction = isAdmin ? "/dashboard" : "/contact";
+  const primaryLabel = isAdmin ? "Open Admin Dashboard" : "Get Started";
+  const contactLabel = isAdmin ? "Open Contact Operations" : "Contact Me";
 
   return (
     <section data-page="home" className="page">
@@ -93,10 +92,8 @@ export default function HomePage() {
             </div>
             <p className="muted">
               {isAdmin
-                ? "Manage learners, tutors, courses, requests, and site content."
-                : isTutor
-                  ? "Review requests and tutor-facing course information."
-                  : "Access assessments, booking history, and progress records."}
+                ? "Manage students, courses, requests, and site content."
+                : "Access assessments, booking history, and progress records."}
             </p>
           </section>
 
@@ -108,14 +105,14 @@ export default function HomePage() {
               <li><button onClick={() => navigate(isAdmin ? "/exam-prep" : canUseAssessment ? "/assessment" : "/dashboard")}>
                 {isAdmin ? "Manage exam prep" : canUseAssessment ? "Do assessment" : "Open dashboard"}
               </button></li>
-              <li><button onClick={() => navigate("/contact")}>{isAdmin || isTutor ? "Review requests" : "Tutoring request"}</button></li>
+              <li><button onClick={() => navigate("/contact")}>{isAdmin ? "Review requests" : "Tutoring request"}</button></li>
             </ul>
           </section>
 
           <section className="card side-panel">
             <h3>Quick Contact</h3>
             <p className="muted">For consultation and availability.</p>
-            <p><strong>Email:</strong> tutor@example.com</p>
+            <p><strong>Email:</strong> contact@example.com</p>
             <p><strong>Phone:</strong> +1 (555) 123-4567</p>
           </section>
         </aside>

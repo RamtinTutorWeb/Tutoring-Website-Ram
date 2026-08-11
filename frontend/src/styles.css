@@ -27,6 +27,12 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   font-family: var(--font-body);
@@ -37,6 +43,16 @@ body {
     linear-gradient(180deg, #041125 0%, #071b34 48%, #06182f 100%);
   line-height: 1.45;
   font-weight: 500;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  flex: 1;
 }
 
 .container {
@@ -59,6 +75,10 @@ body {
   align-items: center;
   gap: 1rem;
   padding: 0.8rem 0;
+}
+
+.header-inner nav {
+  flex: 1;
 }
 
 .brand {
@@ -88,6 +108,9 @@ body {
   gap: 0.45rem;
   margin: 0;
   padding: 0;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
 }
 
 .nav-btn {
@@ -115,6 +138,35 @@ body {
   border-color: transparent;
   color: #07182d;
   font-weight: 800;
+}
+
+.logout-btn {
+  border-color: color-mix(in srgb, var(--orange-mid) 62%, var(--line) 38%);
+  color: var(--orange-soft);
+}
+
+.floating-logout {
+  position: fixed;
+  top: 0.8rem;
+  right: 1rem;
+  z-index: 35;
+  background: color-mix(in srgb, var(--cyan-deep) 92%, var(--orange-mid) 8%);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28);
+}
+
+.logout-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(2, 10, 22, 0.68);
+}
+
+.logout-confirm {
+  width: min(420px, 100%);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
 }
 
 .page {
@@ -332,6 +384,16 @@ button {
 .primary:hover,
 .nav-btn.active:hover {
   background: linear-gradient(135deg, var(--phosphor), var(--orange-mid), var(--purple));
+}
+
+.button-link {
+  display: inline-block;
+  width: fit-content;
+  margin-top: 0.4rem;
+  padding: 0.52rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  text-decoration: none;
 }
 
 .danger {

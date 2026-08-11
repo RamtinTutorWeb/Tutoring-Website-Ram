@@ -1,6 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import PasswordField from "../components/PasswordField";
 import StarRating from "../components/StarRating";
 import { useAppContext } from "../context/AppContext";
 import type { Course, CourseProgressStatus, FaqItem, Review, SelectableOptionKey, SessionSettings, SessionSlot, SessionSlotStatus, SessionType, User } from "../types";
@@ -22,8 +21,17 @@ const courseStatusLabels: Record<CourseProgressStatus, string> = {
   passed: "Passed"
 };
 
-const learnerRoles: User["role"][] = ["student", "parent"];
+const learnerRoles: User["role"][] = ["student", "parent", "tutor"];
 const calendlyUrl = "https://calendly.com/shahla-ca78/30min";
+const allowedSessionDurations = [
+  { minutes: 60, label: "1 hour" },
+  { minutes: 120, label: "2 hours" },
+  { minutes: 180, label: "3 hours" }
+];
+
+function displayRole(role: User["role"]): "Admin" | "Student" {
+  return role === "admin" ? "Admin" : "Student";
+}
 
 function formatHour(hour: number): string {
   return `${String(hour).padStart(2, "0")}:00`;
@@ -77,7 +85,6 @@ export default function DashboardPage() {
     reserveSessionSlot,
     deleteSessionSlot,
     updateSessionSettings,
-    createTutor,
     resetLearnerAccount,
     addReview,
     addPendingReview,
@@ -115,7 +122,7 @@ export default function DashboardPage() {
 
   function handleAddReview(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "tutor")) return;
+    if (!currentUser || currentUser.role !== "admin") return;
     const fd = new FormData(e.currentTarget);
     addReview(String(fd.get("name") ?? ""), Number(fd.get("rating") ?? 5), String(fd.get("text") ?? ""));
     e.currentTarget.reset();
@@ -135,19 +142,6 @@ export default function DashboardPage() {
     const fd = new FormData(e.currentTarget);
     addFaq(String(fd.get("question") ?? ""), String(fd.get("answer") ?? ""));
     e.currentTarget.reset();
-  }
-
-  async function handleAddTutor(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!currentUser || currentUser.role !== "admin") return;
-    const fd = new FormData(e.currentTarget);
-    const result = await createTutor({
-      name: String(fd.get("name") ?? ""),
-      email: String(fd.get("email") ?? ""),
-      password: String(fd.get("password") ?? "")
-    });
-    setAdminFeedback(result.message);
-    if (result.ok) e.currentTarget.reset();
   }
 
   async function handleResetLearner(e: FormEvent<HTMLFormElement>) {
@@ -229,36 +223,17 @@ export default function DashboardPage() {
         />
       ) : null}
 
-      {currentUser.role === "tutor" ? (
-        <TutorDashboard
-          currentUser={currentUser}
-          requests={db.requests}
-          courses={db.courses}
-          reviews={db.reviews}
-          sessionSlots={db.sessionSlots}
-          sessionSettings={db.sessionSettings}
-          tutors={tutors}
-          updateRequestStatus={updateRequestStatus}
-          addSessionSlot={addSessionSlot}
-          updateSessionSlotStatus={updateSessionSlotStatus}
-          reserveSessionSlot={reserveSessionSlot}
-          deleteSessionSlot={deleteSessionSlot}
-          updateSessionSettings={updateSessionSettings}
-        />
-      ) : null}
-
       {currentUser.role === "admin" ? (
         <div className="dashboard-stack" id="admin-dashboard">
           <div className="dashboard-grid">
-            <StatCard label="Learners" value={learners.length} />
-            <StatCard label="Tutors" value={tutors.length} />
+            <StatCard label="Students" value={learners.length} />
             <StatCard label="Courses" value={db.courses.length} />
             <StatCard label="Open Requests" value={db.requests.filter((request) => request.status !== "closed").length} />
           </div>
 
           <div className="card">
             <h3>Display Preview</h3>
-            <p className="muted">Open the same display pages learners and visitors use.</p>
+            <p className="muted">Open the same display pages students and visitors use.</p>
             <div className="row">
               <button type="button" onClick={() => navigate("/")}>Home</button>
               <button type="button" onClick={() => navigate("/courses")}>Courses</button>
@@ -267,25 +242,13 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid-2">
-            <div className="card">
-              <h3>Add Tutor</h3>
-              <form onSubmit={handleAddTutor}>
-                <label>Name<input name="name" required /></label>
-                <label>Email<input name="email" type="email" required /></label>
-                <PasswordField label="Temporary Password" name="password" minLength={8} required />
-                <button className="primary" type="submit">Create Tutor</button>
-              </form>
-            </div>
-
-            <div className="card">
-              <h3>Reset Learner Account</h3>
-              <form onSubmit={handleResetLearner}>
-                <label>Learner Email<input name="email" type="email" required /></label>
-                <button className="primary" type="submit">Send Reset Link</button>
-              </form>
-              <p className="feedback">{adminFeedback}</p>
-            </div>
+          <div className="card">
+            <h3>Reset Student Account</h3>
+            <form onSubmit={handleResetLearner}>
+              <label>Student Email<input name="email" type="email" required /></label>
+              <button className="primary" type="submit">Send Reset Link</button>
+            </form>
+            <p className="feedback">{adminFeedback}</p>
           </div>
 
           <div className="grid-2">
@@ -297,11 +260,11 @@ export default function DashboardPage() {
             />
 
             <div className="card">
-              <h3>Assign Course To Learner</h3>
+              <h3>Assign Course To Student</h3>
               <form onSubmit={handleAssignCourse}>
-                <label>Learner
+                <label>Student
                   <select name="userId" required>
-                    <option value="">Select learner</option>
+                    <option value="">Select student</option>
                     {learners.map((learner) => (
                       <option key={learner.id} value={learner.id}>{learner.name} - {learner.email}</option>
                     ))}
@@ -327,7 +290,29 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <SessionCalendarCard
+          {/*
+            Rollback option: restore the full internal calendar for Admin by uncommenting this component.
+            <SessionCalendarCard
+              currentUser={currentUser}
+              tutors={tutors}
+              sessionSlots={db.sessionSlots}
+              sessionSettings={db.sessionSettings}
+              addSessionSlot={addSessionSlot}
+              updateSessionSlotStatus={updateSessionSlotStatus}
+              reserveSessionSlot={reserveSessionSlot}
+              deleteSessionSlot={deleteSessionSlot}
+              updateSessionSettings={updateSessionSettings}
+            />
+          */}
+          <div className="card">
+            <h3>Session Reservation</h3>
+            <p className="muted">Use Calendly to reserve a session. Session duration must be 1, 2, or 3 hours.</p>
+            <a className="button-link primary" href={calendlyUrl} target="_blank" rel="noreferrer">
+              Reserve Session With Calendly
+            </a>
+          </div>
+
+          {/* <SessionCalendarCard
             currentUser={currentUser}
             tutors={tutors}
             sessionSlots={db.sessionSlots}
@@ -337,11 +322,11 @@ export default function DashboardPage() {
             reserveSessionSlot={reserveSessionSlot}
             deleteSessionSlot={deleteSessionSlot}
             updateSessionSettings={updateSessionSettings}
-          />
+          /> */}
 
           <div className="card">
-            <h3>Learner Course Progress</h3>
-            <p className="muted">For full notes and learner needs, check the Detail Request tab.</p>
+            <h3>Student Course Progress</h3>
+            <p className="muted">For full notes and student needs, check the Detail Request tab.</p>
             <div className="list">
               {db.learnerCourses.length ? db.learnerCourses.map((record) => {
                 const learner = getUser(record.userId);
@@ -349,7 +334,7 @@ export default function DashboardPage() {
                 return (
                   <div className="list-item learner-course-row" key={record.id}>
                     <div>
-                      <strong>{learner?.name ?? "Unknown learner"}</strong>
+                      <strong>{learner?.name ?? "Unknown student"}</strong>
                       <p className="muted">{course?.title ?? "Unknown course"} | {learner?.email ?? "No email"}</p>
                     </div>
                     <div className="row">
@@ -366,7 +351,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 );
-              }) : <p className="muted">No learner courses assigned yet.</p>}
+              }) : <p className="muted">No student courses assigned yet.</p>}
             </div>
           </div>
 
@@ -428,14 +413,15 @@ export default function DashboardPage() {
 }
 
 function DashboardHeader({ currentUser }: { currentUser: User }) {
+  const visibleRole = displayRole(currentUser.role);
   return (
     <div className="dashboard-hero">
       <div>
-        <p className="hero-kicker">{currentUser.role} portal</p>
+        <p className="hero-kicker">{visibleRole} portal</p>
         <h2>{currentUser.name}</h2>
         <p>{currentUser.email}</p>
       </div>
-      <span className="role-pill">{currentUser.role}</span>
+      <span className="role-pill">{visibleRole}</span>
     </div>
   );
 }
@@ -487,7 +473,7 @@ function LearnerDashboard({
           <div className="profile-lines">
             <p><strong>Name:</strong> {currentUser.name}</p>
             <p><strong>Email:</strong> {currentUser.email}</p>
-            <p><strong>Role:</strong> {currentUser.role}</p>
+            <p><strong>Role:</strong> {displayRole(currentUser.role)}</p>
           </div>
         </div>
 
@@ -535,14 +521,33 @@ function LearnerDashboard({
         </div>
       </div>
 
-      <SessionCalendarCard
+      {/*
+        Rollback option: restore the full internal calendar for Student by uncommenting this component.
+        <SessionCalendarCard
+          currentUser={currentUser}
+          tutors={tutors}
+          sessionSlots={sessionSlots}
+          sessionSettings={sessionSettings}
+          addSessionSlot={addSessionSlot}
+          reserveSessionSlot={reserveSessionSlot}
+        />
+      */}
+      <div className="card">
+        <h3>Session Reservation</h3>
+        <p className="muted">Use Calendly to reserve a session. Session duration must be 1, 2, or 3 hours.</p>
+        <a className="button-link primary" href={calendlyUrl} target="_blank" rel="noreferrer">
+          Reserve Session With Calendly
+        </a>
+      </div>
+
+      {/* <SessionCalendarCard
         currentUser={currentUser}
         tutors={tutors}
         sessionSlots={sessionSlots}
         sessionSettings={sessionSettings}
         addSessionSlot={addSessionSlot}
         reserveSessionSlot={reserveSessionSlot}
-      />
+      /> */}
 
       <div className="card">
         <h3>Leave A Review</h3>
@@ -716,8 +721,8 @@ function SessionCalendarCard({
   const [calendarFeedback, setCalendarFeedback] = useState("");
   const [monthOffset, setMonthOffset] = useState(0);
   const isAdmin = currentUser.role === "admin";
-  const isTutor = currentUser.role === "tutor";
-  const canManageSlots = isAdmin || isTutor;
+  const isTutor = false;
+  const canManageSlots = isAdmin;
   const activeMonth = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + monthOffset, 1);
   const visibleSlots = sessionSlots
     .filter((slot) => isAdmin || !isTutor || slot.tutorId === currentUser.id)
@@ -776,7 +781,7 @@ function SessionCalendarCard({
   }
 
   function tutorName(tutorId: string): string {
-    return tutors.find((tutor) => tutor.id === tutorId)?.name ?? (tutorId === currentUser.id ? currentUser.name : "Tutor");
+    return tutors.find((tutor) => tutor.id === tutorId)?.name ?? (tutorId === currentUser.id ? currentUser.name : "Instructor");
   }
 
   function getDayCounts(date: string): { available: number; reserved: number } {
@@ -920,7 +925,7 @@ function SessionCalendarCard({
                   <iframe className="calendly-frame small" title="Calendly booking" src={calendlyUrl}></iframe>
                   <form onSubmit={handleDefaultReservation}>
                     <label>Your Name<input name="learnerName" defaultValue={currentUser.name} required /></label>
-                    <label>Tutor
+                    <label>Instructor
                       <select name="tutorId" required>
                         {reservableTutors.map((tutor) => <option key={tutor.id} value={tutor.id}>{tutor.name}</option>)}
                       </select>
@@ -969,7 +974,7 @@ function SessionCalendarCard({
               <strong>{tutorName(selectedSlot.tutorId)}</strong>
               <p>Purpose: {selectedSlot.purpose ?? "Tutoring Session"}</p>
               <p>Status: {selectedStatus}</p>
-              {selectedSlot.learnerName ? <p>Learner: {selectedSlot.learnerName}</p> : null}
+              {selectedSlot.learnerName ? <p>Student: {selectedSlot.learnerName}</p> : null}
               {selectedSlot.notes ? <p>{selectedSlot.notes}</p> : null}
             </div>
           </div>
@@ -1010,9 +1015,9 @@ function SessionCalendarCard({
         <h3>Add Session Slot</h3>
         <form onSubmit={handleAddSlot}>
           {isAdmin ? (
-            <label>Tutor
+            <label>Instructor
               <select name="tutorId" required>
-                <option value="">Select tutor</option>
+                <option value="">Select instructor</option>
                 {tutors.map((tutor) => (
                   <option key={tutor.id} value={tutor.id}>{tutor.name}</option>
                 ))}
@@ -1038,7 +1043,7 @@ function SessionCalendarCard({
               <option value="reserved">Reserved</option>
             </select>
           </label>
-          <label>Learner Name<input name="learnerName" /></label>
+          <label>Student Name<input name="learnerName" /></label>
           <label>Notes<textarea name="notes" rows={2} /></label>
           <div className="row">
             <button className="primary" type="submit">Save Slot</button>
@@ -1083,13 +1088,25 @@ function SessionCalendarCard({
       {canManageSlots && updateSessionSettings ? (
         <form className="calendar-settings" onSubmit={handleSessionSettings}>
           <label>Max Sessions Per Day<input name="defaultDailySlots" type="number" min={1} defaultValue={sessionSettings.defaultDailySlots} required /></label>
-          <label>Slot Duration Minutes<input name="slotDurationMinutes" type="number" min={15} step={15} defaultValue={sessionSettings.slotDurationMinutes} required /></label>
+          <label>Default Duration
+            <select name="slotDurationMinutes" defaultValue={sessionSettings.slotDurationMinutes}>
+              {allowedSessionDurations.map((duration) => (
+                <option key={duration.minutes} value={duration.minutes}>{duration.label}</option>
+              ))}
+            </select>
+          </label>
           <label>Start Hour<input name="dayStartHour" type="number" min={0} max={23} defaultValue={sessionSettings.dayStartHour} required /></label>
           <label>End Hour<input name="dayEndHour" type="number" min={1} max={24} defaultValue={sessionSettings.dayEndHour} required /></label>
           {selectedSessionTypes.map((type) => (
             <div className="session-type-row" key={type.id}>
               <label>Session Purpose<input name="sessionPurpose" defaultValue={type.purpose} required /></label>
-              <label>Duration Minutes<input name="sessionDuration" type="number" min={15} step={15} defaultValue={type.durationMinutes} required /></label>
+              <label>Duration
+                <select name="sessionDuration" defaultValue={type.durationMinutes}>
+                  {allowedSessionDurations.map((duration) => (
+                    <option key={duration.minutes} value={duration.minutes}>{duration.label}</option>
+                  ))}
+                </select>
+              </label>
             </div>
           ))}
           <button type="submit">Save Calendar Settings</button>

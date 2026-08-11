@@ -5,7 +5,7 @@ export default function AssessmentPage() {
   const { currentUser, canUseAssessment } = useAppContext();
   const navigate = useNavigate();
   const gateMessage = currentUser
-    ? `Assessment is available for learner or parent accounts. You are currently logged in as ${currentUser.role}.`
+    ? "Assessment is available for student accounts."
     : "Login is required to access assessment tools.";
 
   return (

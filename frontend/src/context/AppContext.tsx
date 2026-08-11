@@ -32,6 +32,7 @@ interface SignupPayload {
   email: string;
   password: string;
   role: User["role"];
+  adminSignupCode?: string;
 }
 
 interface BackendUser {
@@ -316,6 +317,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         email,
         password: payload.password,
         role: toBackendRole(payload.role),
+        adminSignupCode: payload.adminSignupCode,
         firstname,
         lastname
       });

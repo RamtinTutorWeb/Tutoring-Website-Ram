@@ -177,6 +177,23 @@ async function registerUser(req, res) {
 			return res.status(400).json({ message: "Please select a valid account role." });
 		}
 
+		if (role === "admin") {
+			const configuredAdminCode = String(process.env.ADMIN_SIGNUP_CODE || "");
+			const submittedAdminCode = String(req.body.adminSignupCode || "");
+
+			if (!configuredAdminCode) {
+				return res.status(403).json({
+					message: "Admin signup is not configured. Please contact the site owner.",
+				});
+			}
+
+			if (submittedAdminCode !== configuredAdminCode) {
+				return res.status(403).json({
+					message: "Invalid admin access code.",
+				});
+			}
+		}
+
 		console.log("Creating new user...");
 		const user = await User.create({
 			username,

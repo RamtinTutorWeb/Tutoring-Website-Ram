@@ -11,6 +11,7 @@ export default function AuthPage() {
   const [signupFeedback, setSignupFeedback] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [signupLoading, setSignupLoading] = useState(false);
+  const [signupRole, setSignupRole] = useState<User["role"]>("student");
   const loginPasswordRef = useRef<HTMLInputElement>(null);
   const signupPasswordRef = useRef<HTMLInputElement>(null);
 
@@ -56,12 +57,14 @@ export default function AuthPage() {
         name: String(fd.get("name") ?? ""),
         email: String(fd.get("email") ?? ""),
         password: String(fd.get("password") ?? ""),
-        role: String(fd.get("role") ?? "student") as User["role"]
+        role: String(fd.get("role") ?? "student") as User["role"],
+        adminSignupCode: String(fd.get("adminSignupCode") ?? "")
       });
 
       setSignupFeedback(result.message);
       if (result.ok) {
         e.currentTarget.reset();
+        setSignupRole("student");
         navigate("/dashboard", { replace: true });
       }
     } finally {
@@ -88,10 +91,14 @@ export default function AuthPage() {
           <label>Email<input name="email" type="email" autoComplete="email" required /></label>
           <PasswordField label="Password" name="password" inputRef={signupPasswordRef} required />
           <label>Role
-            <select name="role" required>
+            <select name="role" value={signupRole} onChange={(e) => setSignupRole(e.target.value as User["role"])} required>
               <option value="student">Student</option>
+              <option value="admin">Admin</option>
             </select>
           </label>
+          {signupRole === "admin" ? (
+            <PasswordField label="Admin Access Code" name="adminSignupCode" required />
+          ) : null}
           <button className="primary" type="submit" disabled={signupLoading}>{signupLoading ? "Creating..." : "Create Account"}</button>
           <p className="feedback">{signupFeedback}</p>
         </form>

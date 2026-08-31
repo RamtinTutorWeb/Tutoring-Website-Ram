@@ -97,36 +97,13 @@ export default function ExamPrepPage() {
 
       {isAdmin ? (
         <div className="dashboard-stack" id="exam-prep-admin">
-          <div className="grid-2">
-            <div className="card">
+          <div className="card">
               <h3>Add Exam Prep Track</h3>
               <form onSubmit={handleAddTrack}>
                 <label>Track Name<input name="title" placeholder="IB Math AA" required /></label>
                 <label>Topics/Description<textarea name="description" rows={3} required /></label>
                 <button className="primary" type="submit">Add Track</button>
               </form>
-            </div>
-
-            <div className="card">
-              <h3>Manage Exam Parameters</h3>
-              <label>Parameter Group
-                <select
-                  value={selectedOptionGroup}
-                  onChange={(e) => {
-                    setSelectedOptionGroup(e.target.value as SelectableOptionKey);
-                    setFeedback("");
-                  }}
-                >
-                  {examOptionGroups.map((group) => (
-                    <option key={group.key} value={group.key}>{group.label}</option>
-                  ))}
-                </select>
-              </label>
-              <form onSubmit={handleAddOption}>
-                <label>New Value<input name="optionValue" required /></label>
-                <button className="primary" type="submit">Add Value</button>
-              </form>
-            </div>
           </div>
 
           <div className="card">
@@ -158,6 +135,23 @@ export default function ExamPrepPage() {
 
           <div className="card">
             <h3>Parameter Values: {examOptionGroups.find((group) => group.key === selectedOptionGroup)?.label}</h3>
+            <label>Parameter Group
+              <select
+                value={selectedOptionGroup}
+                onChange={(e) => {
+                  setSelectedOptionGroup(e.target.value as SelectableOptionKey);
+                  setFeedback("");
+                }}
+              >
+                {examOptionGroups.map((group) => (
+                  <option key={group.key} value={group.key}>{group.label}</option>
+                ))}
+              </select>
+            </label>
+            <form onSubmit={handleAddOption}>
+              <label>New Value<input name="optionValue" required /></label>
+              <button className="primary" type="submit">Add Value</button>
+            </form>
             <div className="list">
               {db.selectableOptions[selectedOptionGroup].map((option, index) => (
                 <form className="list-item" key={`${selectedOptionGroup}-${option}-${index}`} onSubmit={(e) => handleUpdateOption(e, index)}>

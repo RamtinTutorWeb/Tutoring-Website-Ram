@@ -1,10 +1,11 @@
 export type Role = "visitor" | "student" | "parent" | "tutor" | "admin";
-export type Route = "home" | "courses" | "exam-prep" | "assessment" | "contact" | "login" | "dashboard" | "policy";
+export type Route = "home" | "courses" | "exam-prep" | "assessment" | "contact" | "login" | "dashboard" | "profile" | "policy";
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   password: string;
   role: Exclude<Role, "visitor">;
 }
@@ -49,6 +50,8 @@ export interface SessionSlot {
   startTime: string;
   endTime: string;
   purpose?: string;
+  courseId?: string;
+  courseTitle?: string;
   status: SessionSlotStatus;
   learnerName?: string;
   notes?: string;

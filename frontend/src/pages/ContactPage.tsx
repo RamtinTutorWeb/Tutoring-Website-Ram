@@ -3,10 +3,7 @@ import { useAppContext } from "../context/AppContext";
 import type { BookingRequest, SelectableOptionKey } from "../types";
 
 const contactOptionGroups: Array<{ key: SelectableOptionKey; label: string }> = [
-  { key: "contactMethods", label: "Contact Methods" },
-  { key: "serviceTypes", label: "Service Types" },
-  { key: "urgencyWindows", label: "Urgency Windows" },
-  { key: "urgencyFlags", label: "Urgency Choices" }
+  { key: "contactMethods", label: "Contact Methods" }
 ];
 
 type RequestStatusFilter = "new" | "replied";
@@ -26,14 +23,18 @@ export default function ContactPage() {
   const [requestSearch, setRequestSearch] = useState("");
   const [selectedOptionGroup, setSelectedOptionGroup] = useState<SelectableOptionKey>("contactMethods");
   const isAdmin = currentUser?.role === "admin";
+  const contactRequests = useMemo(
+    () => db.requests.filter((request) => request.serviceType !== "Session Request"),
+    [db.requests]
+  );
 
   const filteredRequests = useMemo(() => {
-    const requests = [...db.requests].reverse();
+    const requests = [...contactRequests].reverse();
     return requests.filter((request) => (
       request.status === statusFilter &&
       request.name.toLowerCase().includes(requestSearch.trim().toLowerCase())
     ));
-  }, [db.requests, requestSearch, statusFilter]);
+  }, [contactRequests, requestSearch, statusFilter]);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -43,15 +44,15 @@ export default function ContactPage() {
       contactMethod: String(fd.get("contactMethod") ?? ""),
       email: String(fd.get("email") ?? ""),
       phone: String(fd.get("phone") ?? ""),
-      serviceType: String(fd.get("serviceType") ?? ""),
-      subject: String(fd.get("subject") ?? ""),
-      urgencyWindow: String(fd.get("urgencyWindow") ?? ""),
-      isUrgent: String(fd.get("isUrgent") ?? "No"),
-      hardTopics: String(fd.get("hardTopics") ?? ""),
-      preferredSlot: String(fd.get("preferredSlot") ?? ""),
-      earliestDate: String(fd.get("earliestDate") ?? ""),
+      serviceType: "General Inquiry",
+      subject: "Contact message",
+      urgencyWindow: "",
+      isUrgent: "No",
+      hardTopics: "",
+      preferredSlot: "",
+      earliestDate: "",
       message: String(fd.get("message") ?? ""),
-      consultation: fd.get("consultation") === "on"
+      consultation: false
     });
 
     setFeedback(result.message);
@@ -79,11 +80,11 @@ export default function ContactPage() {
     return (
       <section data-page="contact" className="page">
         <h2>Contact Operations</h2>
-        <p className="muted">Review booking requests and manage the choices shown in the contact form.</p>
+        <p className="muted">Review general contact messages and manage contact-method choices.</p>
 
         <div className="grid-2">
-          <StatCard label="New" value={db.requests.filter((request) => request.status === "new").length} />
-          <StatCard label="Responded" value={db.requests.filter((request) => request.status === "replied").length} />
+          <StatCard label="New" value={contactRequests.filter((request) => request.status === "new").length} />
+          <StatCard label="Responded" value={contactRequests.filter((request) => request.status === "replied").length} />
         </div>
 
         <div className="grid-2">
@@ -145,8 +146,8 @@ export default function ContactPage() {
 
   return (
     <section data-page="contact" className="page">
-      <h2>Contact / Booking Request</h2>
-      <p className="muted">Send your tutoring request with your subject, timeline, and preferred contact method.</p>
+      <h2>Contact</h2>
+      <p className="muted">Send us a general question or message. To reserve tutoring time, use Book a Session in your dashboard.</p>
       <ContactRequestForm db={db} feedback={feedback} handleSubmit={handleSubmit} />
     </section>
   );
@@ -174,35 +175,7 @@ function ContactRequestForm({
       </label>
       <label>Email<input name="email" type="email" required /></label>
       <label>Phone<input name="phone" /></label>
-      <label>Tutoring Service Type
-        <select name="serviceType" required>
-          <option value="">Select...</option>
-          {db.selectableOptions.serviceTypes.map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </select>
-      </label>
-      <label>Subject<input name="subject" placeholder="Math / Physics / ..." /></label>
-      <label>Exam Urgency
-        <select name="urgencyWindow">
-          <option value="">Select...</option>
-          {db.selectableOptions.urgencyWindows.map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </select>
-      </label>
-      <label>Is This Urgent?
-        <select name="isUrgent">
-          {db.selectableOptions.urgencyFlags.map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </select>
-      </label>
-      <label>Hard Topics<textarea name="hardTopics" rows={2} /></label>
-      <label>Preferred Slot<input name="preferredSlot" type="text" placeholder="Mon/Wed 6-8PM" /></label>
-      <label>Earliest Consultation Date<input name="earliestDate" type="date" /></label>
       <label>Message<textarea name="message" required rows={4} /></label>
-      <label className="check-row"><input name="consultation" type="checkbox" /> Request consultation session</label>
       <label className="check-row"><input name="notRobot" type="checkbox" required /> I'm not a robot</label>
       <button className="primary" type="submit">Submit Request</button>
       <p className="feedback">{feedback}</p>

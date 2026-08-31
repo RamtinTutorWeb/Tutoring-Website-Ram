@@ -4,16 +4,24 @@ import type { Course } from "../types";
 
 export default function CoursesPage() {
   const { db, currentUser, addCourse, updateCourse, deleteCourse } = useAppContext();
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("University Courses");
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [feedback, setFeedback] = useState("");
   const isAdmin = currentUser?.role === "admin";
-  const categories = useMemo(() => db.selectableOptions.courseCategories, [db.selectableOptions.courseCategories]);
+  const categories = useMemo(
+    () => db.selectableOptions.courseCategories.filter((category) => category !== "All"),
+    [db.selectableOptions.courseCategories]
+  );
+  const allCourses = useMemo(() => {
+    const coursesById = new Map<string, Course>();
+    [...db.courses, ...db.examPrepTracks].forEach((course) => coursesById.set(course.id, course));
+    return [...coursesById.values()];
+  }, [db.courses, db.examPrepTracks]);
 
   const filteredCourses = useMemo(() => {
     if (!categoryFilter) return [];
-    return db.courses.filter((course) => course.category === categoryFilter);
-  }, [db.courses, categoryFilter]);
+    return allCourses.filter((course) => course.category === categoryFilter);
+  }, [allCourses, categoryFilter]);
 
   const selectedCourse = useMemo(() => {
     if (!selectedCourseId) return null;
@@ -59,7 +67,6 @@ export default function CoursesPage() {
             setCategoryFilter(e.target.value);
             setSelectedCourseId("");
           }}>
-            <option value="">Select category</option>
             {categories.map((cat) => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
@@ -115,7 +122,7 @@ export default function CoursesPage() {
           <div className="card">
             <h3>Edit Courses</h3>
             <div className="list">
-              {db.courses.length ? db.courses.map((course) => (
+              {allCourses.length ? allCourses.map((course) => (
                 <details className="list-item course-detail" key={course.id}>
                   <summary><strong>{course.title}</strong> <span className="muted">({course.category})</span></summary>
                   <form onSubmit={(e) => handleUpdateCourse(e, course)}>

@@ -56,6 +56,8 @@ const sessionSlotSchema = new Schema(
     startTime: String,
     endTime: String,
     purpose: String,
+    courseId: String,
+    courseTitle: String,
     status: String,
     learnerName: String,
     notes: String,

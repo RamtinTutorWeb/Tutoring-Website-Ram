@@ -166,6 +166,7 @@ userRouter.get("/me/profile", authMiddleware, async (req, res) => {
 
 		const base = {
 			role: user.role,
+			phone: user.phone || "",
 			selectedSkills: user.selectedSkills || [],
 			bio: user.bio || "",
 			cohort: user.cohort || "",
@@ -196,6 +197,7 @@ userRouter.put("/me/profile", authMiddleware, async (req, res) => {
 		}
 
 		const {
+			phone,
 			selectedSkills,
 			bio,
 			cohort,
@@ -207,6 +209,13 @@ userRouter.put("/me/profile", authMiddleware, async (req, res) => {
 			availability,
 		} = req.body;
 
+		if (phone !== undefined) {
+			const cleanPhone = String(phone).trim();
+			if (cleanPhone && !/^[+\d][\d\s().-]{6,24}$/.test(cleanPhone)) {
+				return res.status(400).json({ message: "Please enter a valid phone number" });
+			}
+			user.phone = cleanPhone;
+		}
 		if (selectedSkills !== undefined) user.selectedSkills = selectedSkills;
 		if (bio !== undefined) user.bio = bio;
 		if (cohort !== undefined) user.cohort = cohort;
@@ -225,6 +234,7 @@ userRouter.put("/me/profile", authMiddleware, async (req, res) => {
 
 		res.json({
 			role: user.role,
+			phone: user.phone || "",
 			selectedSkills: user.selectedSkills || [],
 			bio: user.bio || "",
 			cohort: user.cohort || "",

@@ -18,6 +18,7 @@ const UserSchema = new Schema(
 		username: { type: String, required: true, trim: true },
 		firstname: { type: String, trim: true },
 		lastname: { type: String, trim: true },
+		phone: { type: String, trim: true, default: "" },
 		email: {
 			type: String,
 			required: true,

@@ -41,6 +41,7 @@ interface BackendUser {
   firstname?: string;
   lastname?: string;
   email: string;
+  phone?: string;
   role: "learner" | "alumni" | "admin";
 }
 
@@ -64,6 +65,7 @@ interface AppContextValue {
   login: (email: string, password: string) => Promise<{ ok: boolean; message: string }>;
   signup: (payload: SignupPayload) => Promise<{ ok: boolean; message: string }>;
   logout: () => void;
+  updatePhone: (phone: string) => Promise<{ ok: boolean; message: string }>;
   submitContact: (payload: ContactPayload) => { ok: boolean; message: string };
   submitQuestionnaire: (payload: QuestionnairePayload) => void;
   submitTest: (answers: number[], explanations: string[]) => { score: number; total: number; recommendation: string };
@@ -79,7 +81,7 @@ interface AppContextValue {
   deleteLearnerCourse: (recordId: string) => void;
   addSessionSlot: (slot: Omit<SessionSlot, "id">) => { ok: boolean; message: string };
   updateSessionSlotStatus: (slotId: string, status: SessionSlotStatus) => void;
-  reserveSessionSlot: (slotId: string, learnerName: string, notes?: string) => void;
+  reserveSessionSlot: (slotId: string, learnerName: string, notes?: string, courseId?: string, courseTitle?: string) => void;
   deleteSessionSlot: (slotId: string) => void;
   updateSessionSettings: (settings: SessionSettings) => void;
   createTutor: (payload: { name: string; email: string; password: string }) => Promise<{ ok: boolean; message: string }>;
@@ -119,6 +121,7 @@ function backendUserToFrontendUser(user: BackendUser): User {
     id: user._id,
     name: fullName || user.username || user.email,
     email: user.email,
+    phone: user.phone ?? "",
     password: "",
     role: toFrontendRole(user.role)
   };
@@ -199,6 +202,8 @@ function isSlotLocked(slot: Pick<SessionSlot, "date" | "startTime">): boolean {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [db, setDB] = useState<DB>(() => loadDB());
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const currentUser = useMemo(() => db.users.find((u) => u.id === db.currentUserId) ?? null, [db.users, db.currentUserId]);
+  const canUseAssessment = currentUser?.role !== "admin";
 
   useEffect(() => {
     saveDB(db);
@@ -236,6 +241,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!currentUser) return;
+
+    const refreshRequests = () => {
+      apiClient.get<SettingsResponse>("/settings")
+        .then((response) => {
+          if (!response.data.content) return;
+          const remoteRequests = response.data.content.requests;
+          const remoteSlots = response.data.content.sessionSlots;
+          updateDB((draft) => {
+            if (remoteRequests && JSON.stringify(remoteRequests) !== JSON.stringify(draft.requests)) {
+              draft.requests = remoteRequests;
+            }
+            if (remoteSlots && JSON.stringify(remoteSlots) !== JSON.stringify(draft.sessionSlots)) {
+              draft.sessionSlots = remoteSlots;
+            }
+          });
+        })
+        .catch((err) => console.warn("Failed to refresh booking requests:", err));
+    };
+
+    const timer = window.setInterval(refreshRequests, 5000);
+    return () => window.clearInterval(timer);
+  }, [currentUser]);
+
+  useEffect(() => {
     if (!settingsLoaded || !localStorage.getItem("peertrack_token")) return;
 
     const content: SharedContent = {
@@ -267,9 +297,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     db.sessionSlots,
     settingsLoaded
   ]);
-
-  const currentUser = useMemo(() => db.users.find((u) => u.id === db.currentUserId) ?? null, [db.users, db.currentUserId]);
-  const canUseAssessment = currentUser?.role !== "admin";
 
   function updateDB(mutator: (draft: DB) => void): void {
     setDB((prev) => {
@@ -336,6 +363,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateDB((draft) => {
       draft.currentUserId = null;
     });
+  }
+
+  async function updatePhone(phone: string): Promise<{ ok: boolean; message: string }> {
+    try {
+      const response = await apiClient.put<{ phone: string }>("/users/me/profile", { phone });
+      updateDB((draft) => {
+        const user = draft.users.find((item) => item.id === draft.currentUserId);
+        if (user) user.phone = response.data.phone;
+      });
+      return { ok: true, message: "Phone number updated." };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : "Could not update phone number." };
+    }
   }
 
   function submitContact(payload: ContactPayload): { ok: boolean; message: string } {
@@ -426,25 +466,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function addCourse(course: Omit<Course, "id">): void {
     updateDB((draft) => {
-      draft.courses.push({ id: uid(), ...course });
+      const newCourse = { id: uid(), ...course };
+      if (course.category === "Exam Prep") {
+        draft.examPrepTracks.push(newCourse);
+      } else {
+        draft.courses.push(newCourse);
+      }
     });
   }
 
   function updateCourse(courseId: string, course: Omit<Course, "id">): void {
     updateDB((draft) => {
-      const existingCourse = draft.courses.find((item) => item.id === courseId);
-      if (existingCourse) {
-        existingCourse.title = course.title;
-        existingCourse.category = course.category;
-        existingCourse.description = course.description;
+      const existingCourse = draft.courses.find((item) => item.id === courseId)
+        ?? draft.examPrepTracks.find((item) => item.id === courseId);
+      if (!existingCourse) return;
+
+      const updatedCourse = { id: courseId, ...course };
+      draft.courses = draft.courses.filter((item) => item.id !== courseId);
+      draft.examPrepTracks = draft.examPrepTracks.filter((item) => item.id !== courseId);
+      if (course.category === "Exam Prep") {
+        draft.examPrepTracks.push(updatedCourse);
+      } else {
+        draft.courses.push(updatedCourse);
       }
     });
-
   }
 
   function deleteCourse(courseId: string): void {
     updateDB((draft) => {
       draft.courses = draft.courses.filter((c) => c.id !== courseId);
+      draft.examPrepTracks = draft.examPrepTracks.filter((c) => c.id !== courseId);
       draft.learnerCourses = draft.learnerCourses.filter((record) => record.courseId !== courseId);
     });
   }
@@ -469,6 +520,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   function deleteExamPrepTrack(courseId: string): void {
     updateDB((draft) => {
       draft.examPrepTracks = draft.examPrepTracks.filter((course) => course.id !== courseId);
+      draft.learnerCourses = draft.learnerCourses.filter((record) => record.courseId !== courseId);
     });
   }
 
@@ -535,10 +587,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           email: currentUser?.email ?? "",
           phone: "",
           serviceType: "Session Request",
-          subject: "Calendar reservation",
+          subject: slot.courseTitle || "Session reservation",
           urgencyWindow: "",
           isUrgent: "No",
-          hardTopics: "",
+          hardTopics: slot.purpose || "",
           preferredSlot: `${slot.date} ${slot.startTime}-${slot.endTime}`,
           earliestDate: slot.date,
           message: slot.notes || `Session reservation requested for ${slot.date} ${slot.startTime}-${slot.endTime}.`,
@@ -572,12 +624,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  function reserveSessionSlot(slotId: string, learnerName: string, notes = ""): void {
+  function reserveSessionSlot(slotId: string, learnerName: string, notes = "", courseId = "", courseTitle = ""): void {
     updateDB((draft) => {
       const slot = draft.sessionSlots.find((item) => item.id === slotId);
       if (slot) {
         slot.status = "reserved";
         slot.learnerName = learnerName;
+        slot.courseId = courseId;
+        slot.courseTitle = courseTitle;
         if (notes.trim()) slot.notes = notes.trim();
         draft.requests.push({
           id: uid(),
@@ -587,10 +641,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           email: currentUser?.email ?? "",
           phone: "",
           serviceType: "Session Request",
-          subject: "Calendar reservation",
+          subject: courseTitle || "Session reservation",
           urgencyWindow: "",
           isUrgent: "No",
-          hardTopics: "",
+          hardTopics: slot.purpose || "",
           preferredSlot: `${slot.date} ${slot.startTime}-${slot.endTime}`,
           earliestDate: slot.date,
           message: notes.trim() || `Session reservation requested for ${slot.date} ${slot.startTime}-${slot.endTime}.`,
@@ -769,6 +823,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     login,
     signup,
     logout,
+    updatePhone,
     submitContact,
     submitQuestionnaire,
     submitTest,

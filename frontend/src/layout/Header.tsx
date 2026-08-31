@@ -34,6 +34,9 @@ export default function Header() {
             {currentUser ? (
               <li><NavLink to="/dashboard" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>Dashboard</NavLink></li>
             ) : null}
+            {currentUser ? (
+              <li><NavLink to="/profile" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>Profile</NavLink></li>
+            ) : null}
             {!currentUser ? (
               <li><NavLink to="/login" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>Login</NavLink></li>
             ) : null}
@@ -48,11 +51,15 @@ export default function Header() {
       {showLogoutConfirm ? (
         <div className="logout-confirm-backdrop" role="presentation">
           <div className="card logout-confirm" role="dialog" aria-modal="true" aria-labelledby="logout-confirm-title">
-            <h3 id="logout-confirm-title">Confirm Logout</h3>
-            <p>Do you want to logout?</p>
-            <div className="row">
-              <button className="danger" type="button" onClick={confirmLogout}>Yes, Logout</button>
-              <button type="button" onClick={() => setShowLogoutConfirm(false)}>Cancel</button>
+            <div className="logout-confirm-icon" aria-hidden="true">↪</div>
+            <p className="hero-kicker">Account session</p>
+            <h2 id="logout-confirm-title">Ready to log out?</h2>
+            <p className="logout-confirm-copy">
+              You are currently signed in as <strong>{currentUser.name}</strong>. You will need to enter your credentials again to return to your dashboard.
+            </p>
+            <div className="logout-confirm-actions">
+              <button className="danger" type="button" onClick={confirmLogout}>Log Out</button>
+              <button type="button" onClick={() => setShowLogoutConfirm(false)}>Stay Signed In</button>
             </div>
           </div>
         </div>

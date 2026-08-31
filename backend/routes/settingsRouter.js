@@ -47,6 +47,19 @@ function normalizeOptions(options) {
   return normalized;
 }
 
+function normalizeCatalog(courses, examPrepTracks) {
+  const itemsById = new Map();
+  [...(Array.isArray(courses) ? courses : []), ...(Array.isArray(examPrepTracks) ? examPrepTracks : [])]
+    .forEach((course) => {
+      if (course?.id) itemsById.set(course.id, course);
+    });
+  const items = [...itemsById.values()];
+  return {
+    courses: items.filter((course) => course.category !== "Exam Prep"),
+    examPrepTracks: items.filter((course) => course.category === "Exam Prep"),
+  };
+}
+
 async function getSettingsDocument() {
   const settings = await SiteSettings.findOneAndUpdate(
     { key: "global" },
@@ -61,8 +74,18 @@ async function getSettingsDocument() {
   );
 
   const normalizedOptions = normalizeOptions(settings.selectableOptions);
+  const normalizedCatalog = normalizeCatalog(settings.courses, settings.examPrepTracks);
   if (JSON.stringify(settings.selectableOptions) !== JSON.stringify(normalizedOptions)) {
     settings.selectableOptions = normalizedOptions;
+  }
+  if (
+    JSON.stringify(settings.courses) !== JSON.stringify(normalizedCatalog.courses) ||
+    JSON.stringify(settings.examPrepTracks) !== JSON.stringify(normalizedCatalog.examPrepTracks)
+  ) {
+    settings.courses = normalizedCatalog.courses;
+    settings.examPrepTracks = normalizedCatalog.examPrepTracks;
+  }
+  if (settings.isModified()) {
     await settings.save();
   }
 
@@ -94,12 +117,13 @@ router.get("/", async (req, res) => {
 router.put("/content", authMiddleware, async (req, res) => {
   try {
     const content = req.body?.content || {};
+    const normalizedCatalog = normalizeCatalog(content.courses, content.examPrepTracks);
     const settings = await SiteSettings.findOneAndUpdate(
       { key: "global" },
       {
         $set: {
-          courses: Array.isArray(content.courses) ? content.courses : [],
-          examPrepTracks: Array.isArray(content.examPrepTracks) ? content.examPrepTracks : [],
+          courses: normalizedCatalog.courses,
+          examPrepTracks: normalizedCatalog.examPrepTracks,
           reviews: Array.isArray(content.reviews) ? content.reviews : [],
           faq: Array.isArray(content.faq) ? content.faq : [],
           learnerCourses: Array.isArray(content.learnerCourses) ? content.learnerCourses : [],

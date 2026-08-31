@@ -34,7 +34,10 @@ export default function Header() {
             {currentUser ? (
               <li><NavLink to="/dashboard" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>Dashboard</NavLink></li>
             ) : null}
-            {currentUser ? (
+            {currentUser?.role === "admin" ? (
+              <li><NavLink to="/settings" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>Settings</NavLink></li>
+            ) : null}
+            {currentUser && currentUser.role !== "admin" ? (
               <li><NavLink to="/profile" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>Profile</NavLink></li>
             ) : null}
             {!currentUser ? (

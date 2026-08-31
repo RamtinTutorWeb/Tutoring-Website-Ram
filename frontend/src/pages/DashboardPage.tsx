@@ -1,4 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
 import StarRating from "../components/StarRating";
 import { useAppContext } from "../context/AppContext";
 import type { BookingRequest, Course, CourseProgressStatus, FaqItem, Review, SelectableOptionKey, SessionSettings, SessionSlot, SessionSlotStatus, SessionType, User } from "../types";
@@ -68,7 +69,7 @@ function monthDates(anchor: Date): string[] {
   });
 }
 
-export default function DashboardPage() {
+export default function DashboardPage({ adminView = "dashboard" }: { adminView?: "dashboard" | "settings" }) {
   const {
     db,
     currentUser,
@@ -197,9 +198,13 @@ export default function DashboardPage() {
     );
   }
 
+  if (adminView === "settings" && currentUser.role !== "admin") {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return (
     <section data-page="dashboard" className="page dashboard-page">
-      <DashboardHeader currentUser={currentUser} />
+      <DashboardHeader currentUser={currentUser} heading={adminView === "settings" ? "Settings" : undefined} />
 
       {learnerRoles.includes(currentUser.role) ? (
         <LearnerDashboard
@@ -218,24 +223,41 @@ export default function DashboardPage() {
 
       {currentUser.role === "admin" ? (
         <div className="dashboard-stack" id="admin-dashboard">
-          <div className="dashboard-grid">
-            <StatCard label="Students" value={learners.length} />
-            <StatCard label="Courses" value={db.courses.length} />
-            <StatCard label="Open Requests" value={db.requests.filter((request) => request.status !== "closed").length} />
-          </div>
+          {adminView === "dashboard" ? (
+            <>
+              <div className="dashboard-grid">
+                <StatCard label="Students" value={learners.length} />
+                <StatCard label="Courses" value={db.courses.length} />
+                <StatCard label="Open Requests" value={db.requests.filter((request) => request.status !== "closed").length} />
+              </div>
 
-          <SessionCalendarCard
-            currentUser={currentUser}
-            tutors={tutors}
-            courses={db.courses}
-            sessionSlots={db.sessionSlots}
-            sessionSettings={db.sessionSettings}
-            addSessionSlot={addSessionSlot}
-            updateSessionSlotStatus={updateSessionSlotStatus}
-            reserveSessionSlot={reserveSessionSlot}
-            deleteSessionSlot={deleteSessionSlot}
-            updateSessionSettings={updateSessionSettings}
-          />
+              <SessionCalendarCard
+                currentUser={currentUser}
+                tutors={tutors}
+                courses={db.courses}
+                sessionSlots={db.sessionSlots}
+                sessionSettings={db.sessionSettings}
+                addSessionSlot={addSessionSlot}
+                updateSessionSlotStatus={updateSessionSlotStatus}
+                reserveSessionSlot={reserveSessionSlot}
+                deleteSessionSlot={deleteSessionSlot}
+                updateSessionSettings={updateSessionSettings}
+              />
+            </>
+          ) : (
+            <>
+          <details className="card courses-overview admin-management">
+            <summary>Profile</summary>
+            <div className="admin-management-content">
+              <div className="profile-lines">
+                <p><strong>Name:</strong> {currentUser.name}</p>
+                <p><strong>Email:</strong> {currentUser.email}</p>
+                <p><strong>Phone:</strong> {currentUser.phone || "Not provided"}</p>
+                <p><strong>Account type:</strong> Admin</p>
+              </div>
+              <Link className="button-link primary" to="/profile">Edit Profile</Link>
+            </div>
+          </details>
 
           <div className="admin-course-tools">
             <details className="card courses-overview admin-management">
@@ -375,6 +397,8 @@ export default function DashboardPage() {
             <ReviewsCard reviews={db.reviews} handleAddReview={handleAddReview} approveReview={approveReview} deleteReview={deleteReview} />
             <FaqCard faq={db.faq} handleAddFaq={handleAddFaq} deleteFaq={deleteFaq} />
           </div>
+            </>
+          )}
         </div>
       ) : null}
     </section>
@@ -382,16 +406,19 @@ export default function DashboardPage() {
 }
 
 function DashboardHeader({
-  currentUser
+  currentUser,
+  heading
 }: {
   currentUser: User;
+  heading?: string;
 }) {
   const visibleRole = displayRole(currentUser.role);
   return (
     <div className="dashboard-hero">
       <div className="dashboard-hero-main">
         <p className="hero-kicker">{visibleRole} portal</p>
-        <h2>{currentUser.name}</h2>
+        <h2>{heading ?? currentUser.name}</h2>
+        {heading ? <p>{currentUser.name}</p> : null}
       </div>
       {currentUser.role === "admin" ? <span className="role-pill">Admin</span> : null}
     </div>

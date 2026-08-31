@@ -23,6 +23,7 @@ export default function AppRouter() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/settings" element={<DashboardPage adminView="settings" />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/policy" element={<PolicyPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -29,6 +29,7 @@ export default function ProfilePage() {
         <div className="profile-lines">
           <p><strong>Name:</strong> {currentUser.name}</p>
           <p><strong>Email:</strong> {currentUser.email}</p>
+          <p><strong>Phone:</strong> {currentUser.phone || "Not provided"}</p>
           <p><strong>Account type:</strong> {displayRole(currentUser.role)}</p>
         </div>
         <form className="profile-phone-form" onSubmit={async (e: FormEvent<HTMLFormElement>) => {

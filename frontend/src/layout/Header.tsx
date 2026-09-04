@@ -30,6 +30,7 @@ export default function Header() {
               <li><NavLink to="/assessment" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>Assessment</NavLink></li>
             ) : null}
             <li><NavLink to="/contact" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>{contactLabel}</NavLink></li>
+            <li><NavLink to="/book" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>Book</NavLink></li>
             <li><NavLink to="/policy" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>Policy</NavLink></li>
             {currentUser ? (
               <li><NavLink to="/dashboard" className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}>Dashboard</NavLink></li>

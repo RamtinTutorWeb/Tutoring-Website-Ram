@@ -10,6 +10,8 @@ import HomePage from "../pages/HomePage";
 import PolicyPage from "../pages/PolicyPage";
 import ProfilePage from "../pages/ProfilePage";
 import ResetPasswordPage from "../pages/ResetPasswordPage";
+import { SignInPage, SignUpPage } from "../platform/auth";
+import { BookPage } from "../platform/booking";
 
 export default function AppRouter() {
   return (
@@ -26,6 +28,9 @@ export default function AppRouter() {
       <Route path="/settings" element={<DashboardPage adminView="settings" />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/policy" element={<PolicyPage />} />
+      <Route path="/sign-in/*" element={<SignInPage />} />
+      <Route path="/sign-up/*" element={<SignUpPage />} />
+      <Route path="/book" element={<BookPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

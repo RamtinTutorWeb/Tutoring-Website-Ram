@@ -7,10 +7,13 @@ import "@fontsource/inter/latin-700.css";
 import "@fontsource/inter/latin-800.css";
 import "@fontsource/inter/latin-900.css";
 import App from "./App";
+import { AuthProvider } from "./platform/auth";
 import "./styles.css";
 
 createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </React.StrictMode>
 );

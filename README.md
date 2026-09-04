@@ -103,6 +103,8 @@ The frontend is deployed to Netlify from the `frontend/` folder (see `netlify.to
 
 ## Status and direction
 
+The migration foundation is in place: `supabase/` (schema + RLS), `frontend/src/platform/` (Clerk auth with a dev mock, Supabase client, Calendly embed), `api/` (Vercel webhooks), and `vercel.json`. The runbook for wiring accounts and cutting over is `MIGRATION.md`; the prompt for the machine doing that work is `docs/HANDOFF_PROMPT.md`.
+
 This is an MVP. The backend was adapted from an earlier peer-tutoring project, which is why some naming (`peertrack_token`, alumni routes, extra roles) does not match the product.
 
 Planned changes:

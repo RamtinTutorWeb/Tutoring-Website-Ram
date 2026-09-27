@@ -141,88 +141,6 @@ body {
   font-weight: 800;
 }
 
-.logout-btn {
-  border-color: color-mix(in srgb, var(--orange-mid) 62%, var(--line) 38%);
-  color: var(--orange-soft);
-}
-
-.floating-logout {
-  position: fixed;
-  top: 0.8rem;
-  right: 1rem;
-  z-index: 35;
-  background: color-mix(in srgb, var(--cyan-deep) 92%, var(--orange-mid) 8%);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28);
-}
-
-.logout-confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  padding: 1.5rem;
-  background: rgba(2, 10, 22, 0.82);
-  backdrop-filter: blur(8px);
-}
-
-.logout-confirm {
-  width: min(620px, 100%);
-  min-height: 360px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: clamp(1.5rem, 5vw, 3rem);
-  border-color: color-mix(in srgb, var(--orange-mid) 58%, var(--line) 42%);
-  background:
-    radial-gradient(circle at 50% 0%, rgba(255, 138, 42, 0.18), transparent 45%),
-    linear-gradient(150deg, #12385f, #071b34);
-  text-align: center;
-  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.56);
-}
-
-.logout-confirm-icon {
-  width: 72px;
-  height: 72px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 1rem;
-  border: 2px solid var(--orange-mid);
-  border-radius: 50%;
-  background: rgba(255, 138, 42, 0.13);
-  color: var(--orange-soft);
-  font-size: 2.3rem;
-  font-weight: 900;
-}
-
-.logout-confirm h2 {
-  margin: 0.15rem 0 0.65rem;
-  color: #ffffff;
-  font-size: clamp(1.65rem, 5vw, 2.35rem);
-}
-
-.logout-confirm-copy {
-  max-width: 470px;
-  margin: 0;
-  color: #dceefa;
-  line-height: 1.65;
-}
-
-.logout-confirm-actions {
-  width: min(430px, 100%);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-}
-
-.logout-confirm-actions button {
-  width: 100%;
-  min-height: 48px;
-  margin: 0;
-}
-
 .page {
   padding: 1.5rem 0 2rem;
 }
@@ -428,23 +346,6 @@ select option {
   color: #f6fbff;
 }
 
-.password-wrap {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.45rem;
-  align-items: end;
-}
-
-.password-wrap input {
-  margin-top: 0.28rem;
-}
-
-.password-toggle {
-  min-width: 64px;
-  margin-top: 0.28rem;
-  padding-inline: 0.55rem;
-}
-
 input:focus,
 select:focus,
 textarea:focus {
@@ -582,56 +483,6 @@ button {
   text-transform: uppercase;
 }
 
-.dashboard-quick-actions {
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.dashboard-quick-detail {
-  width: min(300px, 100%);
-}
-
-.dashboard-quick-detail summary {
-  width: fit-content;
-  margin-left: auto;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-
-.dashboard-quick-detail summary::-webkit-details-marker {
-  display: none;
-}
-
-.dashboard-quick-detail summary::after {
-  content: " ▾";
-}
-
-.dashboard-quick-detail[open] summary::after {
-  content: " ▴";
-}
-
-.dashboard-quick-detail[open] summary {
-  box-shadow: 0 0 0 2px var(--phosphor);
-}
-
-.dashboard-quick-panel {
-  display: grid;
-  gap: 0.5rem;
-  margin-top: 0.6rem;
-  padding: 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #071f3a;
-}
-
-.dashboard-quick-panel p {
-  margin: 0;
-}
-
 .dashboard-stack {
   display: grid;
   gap: 1rem;
@@ -666,12 +517,6 @@ button {
 .courses-overview .dashboard-grid,
 .courses-overview .course-progress-list {
   margin-top: 0.9rem;
-}
-
-.profile-overview-content {
-  margin-top: 0.9rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--line);
 }
 
 .review-overview-content {
@@ -849,7 +694,9 @@ button {
 }
 
 .request-status.status-new { color: var(--phosphor); }
-.request-status.status-replied { color: var(--cyan-mid); }
+.request-status.status-accepted { color: var(--pistachio); }
+.request-status.status-declined { color: var(--danger); }
+.request-status.status-scheduled { color: var(--cyan-mid); }
 .request-status.status-closed { color: var(--muted); }
 
 .request-body {
@@ -860,155 +707,6 @@ button {
 
 .request-body p {
   margin: 0.35rem 0;
-}
-
-.calendar-slots {
-  display: grid;
-  gap: 0.6rem;
-  margin-top: 0.75rem;
-}
-
-.calendar-overview {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.55rem;
-  margin-top: 0.9rem;
-}
-
-.calendar-weekday {
-  padding: 0.35rem;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-align: center;
-  text-transform: uppercase;
-}
-
-.calendar-day-blank {
-  min-height: 1px;
-}
-
-.calendar-nav {
-  align-items: center;
-  justify-content: space-between;
-}
-
-.calendar-day {
-  min-height: 92px;
-  display: grid;
-  align-content: center;
-  gap: 0.18rem;
-  margin: 0;
-  text-align: left;
-  background: color-mix(in srgb, var(--surface-strong) 82%, var(--cyan-deep) 18%);
-}
-
-.calendar-day.active {
-  border-color: var(--phosphor);
-  box-shadow: inset 0 0 0 1px var(--phosphor);
-}
-
-.calendar-day.available {
-  border-color: color-mix(in srgb, var(--pistachio) 58%, var(--line) 42%);
-}
-
-.calendar-day.weekend {
-  border-color: color-mix(in srgb, var(--purple) 58%, var(--line) 42%);
-}
-
-.calendar-day:disabled {
-  cursor: not-allowed;
-  filter: grayscale(0.5);
-  opacity: 0.42;
-}
-
-.calendar-day.unavailable {
-  border-color: color-mix(in srgb, var(--danger) 52%, var(--line) 48%);
-  opacity: 0.86;
-}
-
-.calendar-day span {
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
-.calendar-day-status {
-  color: var(--phosphor) !important;
-  font-weight: 900;
-}
-
-.calendar-day.unavailable .calendar-day-status {
-  color: var(--danger) !important;
-}
-
-.calendar-slot {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.68rem;
-  background: var(--surface-strong);
-}
-
-.calendar-slot.available {
-  border-color: color-mix(in srgb, var(--pistachio) 65%, var(--line) 35%);
-}
-
-.calendar-slot.reserved {
-  border-color: color-mix(in srgb, var(--orange-mid) 65%, var(--line) 35%);
-}
-
-.calendar-slots.compact {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.calendar-settings {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.65rem;
-  align-items: end;
-  margin-top: 0.8rem;
-}
-
-.session-type-row {
-  display: contents;
-}
-
-.calendar-slot-button {
-  display: grid;
-  gap: 0.2rem;
-  margin: 0;
-  text-align: left;
-}
-
-.calendar-slot-button.available {
-  border-color: color-mix(in srgb, var(--pistachio) 65%, var(--line) 35%);
-}
-
-.calendar-slot-button.reserved {
-  border-color: color-mix(in srgb, var(--orange-mid) 65%, var(--line) 35%);
-}
-
-.calendar-slot-button span {
-  color: var(--muted);
-}
-
-.session-modal-backdrop {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-height: 360px;
-  padding: 1rem;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background:
-    linear-gradient(135deg, rgba(5, 18, 38, 0.86), rgba(10, 42, 74, 0.9)),
-    repeating-linear-gradient(90deg, transparent 0 13%, rgba(184, 255, 87, 0.08) 13% 14%);
-}
-
-.session-modal {
-  width: min(820px, 100%);
 }
 
 .muted {
@@ -1053,10 +751,6 @@ button {
 .auth-single-wrap {
   display: grid;
   place-items: center;
-}
-
-.auth-single-card {
-  width: min(520px, 100%);
 }
 
 .profile-page {
@@ -1122,12 +816,28 @@ button {
   color: #07182d;
 }
 
-.auth-link-row a {
-  color: var(--phosphor);
+.nav-user {
+  display: flex;
+  align-items: center;
+  padding-left: 0.35rem;
+}
+
+#assessment-form fieldset {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+#assessment-form legend {
+  padding: 0 0.25rem;
 }
 
 .inline-action {
   display: inline-block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
   color: var(--phosphor);
   font-weight: 800;
   text-decoration: none;
@@ -1149,14 +859,6 @@ button {
 }
 
 @media (max-width: 820px) {
-  .logout-confirm {
-    min-height: 420px;
-  }
-
-  .logout-confirm-actions {
-    grid-template-columns: 1fr;
-  }
-
   .request-card-head {
     align-items: stretch;
     flex-direction: column;
@@ -1183,47 +885,17 @@ button {
   .grid-2,
   .dashboard-grid,
   .course-progress-list,
-  .calendar-slots.compact,
-  .calendar-settings,
   .filters,
   .home-side,
   #reviews-list {
     grid-template-columns: 1fr;
   }
 
-  .calendar-overview {
-    gap: 0.25rem;
-  }
-
-  .calendar-day {
-    min-height: 54px;
-    padding: 0.3rem;
-    text-align: center;
-  }
-
-  .calendar-day span:not(.calendar-day-status) {
-    display: none;
-  }
-
-  .calendar-day-status {
-    font-size: 0.6rem !important;
-  }
-
   .dashboard-hero,
   .course-progress-head,
-  .learner-course-row,
-  .calendar-slot {
+  .learner-course-row {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .dashboard-quick-actions,
-  .dashboard-quick-detail {
-    width: 100%;
-  }
-
-  .dashboard-quick-detail summary {
-    margin-left: 0;
   }
 
   .hero-copy {

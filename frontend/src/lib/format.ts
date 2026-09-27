@@ -1,4 +1,11 @@
-export function stars(n: number): string {
-  const safe = Math.max(1, Math.min(5, n));
-  return `${"★".repeat(safe)}${"☆".repeat(5 - safe)}`;
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "Not set";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+}
+
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "Not set";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
 }

@@ -1,71 +1,29 @@
-# TutorPro MVP (React + TypeScript)
+# TutorPro frontend (React + TypeScript + Vite)
 
-This project is now implemented with **React + TypeScript + Vite**.
+Static SPA deployed to Vercel. It talks only to the backend at `VITE_API_URL`, sending
+`Authorization: Bearer <Clerk session token>` when signed in. See `../docs/ARCHITECTURE.md`
+for the API contract and env vars.
 
-## Tech Stack
+## Env
 
-- React 18
-- TypeScript
-- Vite
-- React Router DOM
-- LocalStorage (temporary MVP data store)
+Copy `.env.example` to `.env`:
 
-## Install
-
-```bash
-npm install
-```
+- `VITE_CLERK_PUBLISHABLE_KEY` — Clerk auth. Without it public pages still render and auth routes show a config notice.
+- `VITE_API_URL` — backend origin (defaults to `http://localhost:4000` in dev).
+- `VITE_CALENDLY_URL` — event link embedded on `/book`.
 
 ## Run
 
 ```bash
-npm run dev
+npm install          # from the repo root (workspaces)
+npm --workspace frontend run dev
+npm --workspace frontend run build
 ```
 
-Open: `http://localhost:5173`
+## Structure
 
-## Build
-
-```bash
-npm run build
-npm run preview
-```
-
-## Demo Accounts
-
-- Admin: `admin@site.com` / `admin123`
-- Tutor: `tutor@site.com` / `tutor123`
-- Student: `student@site.com` / `student123`
-
-## Project Structure
-
-- `index.html` - Vite entry HTML
-- `src/main.tsx` - React bootstrap
-- `src/App.tsx` - Root app composition (Router + Provider)
-- `src/context/AppContext.tsx` - Global app state/actions
-- `src/router/AppRouter.tsx` - URL-based route definitions
-- `src/layout/` - Header/Footer/AppShell
-- `src/pages/` - Feature pages (Home, Courses, Assessment, Auth, Contact, Dashboard)
-- `src/styles.css` - UI styling
-- `src/types.ts` - shared TypeScript types
-- `src/data/seed.ts` - seeded data
-- `src/data/testQuestions.ts` - assessment question bank
-- `src/lib/storage.ts` - LocalStorage persistence (temporary until BE API)
-- `src/lib/format.ts` - UI formatting helpers
-- `src/lib/id.ts` - ID helper
-
-## Scope Included
-
-- Visitor pages: Home, Courses, Exam Prep, Contact
-- Login/signup with roles: student/parent/tutor/admin
-- Assessment gated for logged-in student/parent
-- Contact/booking request flow
-- Tutor/Admin dashboard for managing requests/content
-- Admin-only FAQ management
-
-## Future (not implemented)
-
-- Google auth
-- Forgot password email flow
-- Online payments
-- Real backend/database
+- `src/api/` — contract types, fetch client, resource hooks, `MeProvider` (`GET /me`, role), `ContentProvider` (`GET/PUT /content`)
+- `src/auth/` — Clerk session wrapper, `RequireAuth` / `RequireAdmin`, sign-in/sign-up pages
+- `src/pages/` — public pages, `dashboard/` (student + admin), `settings/` (admin content editors)
+- `src/components/` — shared UI (Calendly embed, stat cards, load state)
+- `src/data/` — default form options and the assessment question bank

@@ -2,8 +2,8 @@
 -- TutorPro dev seed
 -- Applied automatically by `supabase start` / `supabase db reset` (local only).
 -- Never run against production: profile ids are placeholders, not real Clerk
--- user ids. To act as these users locally, mint a Clerk dev JWT whose `sub`
--- matches, or swap the ids below for your real Clerk user ids.
+-- user ids. The backend upserts real Clerk users into profiles on their first
+-- GET /me, so sign in locally and promote yourself via Clerk publicMetadata.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -21,8 +21,8 @@ on conflict (id) do update
 
 -- -----------------------------------------------------------------------------
 -- Site settings
--- Shapes mirror frontend/src/types.ts (Course, Review, FaqItem,
--- SelectableOptions, SessionSettings).
+-- Shapes follow SiteContent in docs/ARCHITECTURE.md: 'content' holds
+-- courses/examPrepTracks/reviews/faq, 'selectable_options' the dropdowns.
 -- -----------------------------------------------------------------------------
 insert into public.site_settings (key, content)
 values
@@ -83,22 +83,6 @@ values
       "courseCategories": ["University Courses", "High School Courses", "Exam Prep"]
     }
     $json$::jsonb
-  ),
-  (
-    'session_settings',
-    $json$
-    {
-      "defaultDailySlots": 8,
-      "slotDurationMinutes": 60,
-      "dayStartHour": 8,
-      "dayEndHour": 20,
-      "sessionTypes": [
-        { "id": "session_type_support", "purpose": "Course Support", "durationMinutes": 60 },
-        { "id": "session_type_exam", "purpose": "Exam Prep", "durationMinutes": 120 },
-        { "id": "session_type_assessment", "purpose": "Assessment Review", "durationMinutes": 180 }
-      ]
-    }
-    $json$::jsonb
   )
 on conflict (key) do update
   set content = excluded.content;
@@ -113,23 +97,64 @@ values
 on conflict (student_id, course_id) do nothing;
 
 -- -----------------------------------------------------------------------------
--- One open session request
+-- Session requests: one from the dev student (accepted, bookable) and one from
+-- a guest (new).
 -- -----------------------------------------------------------------------------
 insert into public.session_requests (
-  id, student_id, subject, service_type, urgency_window, is_urgent,
-  hard_topics, preferred_slot, earliest_date, message, status
+  id, student_id, name, email, phone, contact_method, subject, service_type,
+  urgency_window, is_urgent, hard_topics, preferred_slot, earliest_date,
+  message, consultation, status
 )
+values
+  (
+    '00000000-0000-4000-8000-000000000001',
+    'user_dev_student',
+    'Student User',
+    'student@local.test',
+    '+1 555 0100',
+    'Email',
+    'Math',
+    'University',
+    'Within 2 weeks',
+    true,
+    'Integration by parts, Series convergence',
+    'Weekday evenings',
+    current_date + 3,
+    'Midterm in two weeks, need help with the integration unit.',
+    false,
+    'accepted'
+  ),
+  (
+    '00000000-0000-4000-8000-000000000002',
+    null,
+    'Guest Visitor',
+    'guest@local.test',
+    null,
+    'Phone',
+    'Physics',
+    'High School',
+    'Within 1 month',
+    false,
+    '',
+    'Weekends',
+    null,
+    'Looking for weekly physics support.',
+    true,
+    'new'
+  )
+on conflict (id) do nothing;
+
+-- -----------------------------------------------------------------------------
+-- A placement assessment for the dev student
+-- -----------------------------------------------------------------------------
+insert into public.assessments (id, student_id, subject, answers, score, total, recommendation)
 values (
-  '00000000-0000-4000-8000-000000000001',
+  '00000000-0000-4000-8000-000000000101',
   'user_dev_student',
   'Math',
-  'University',
-  'Within 2 weeks',
-  true,
-  array['Integration by parts', 'Series convergence'],
-  'Weekday evenings',
-  current_date + 3,
-  'Midterm in two weeks, need help with the integration unit.',
-  'open'
+  '{"q1": "b", "q2": "d", "q3": "a"}'::jsonb,
+  2,
+  3,
+  'Calculus I'
 )
 on conflict (id) do nothing;

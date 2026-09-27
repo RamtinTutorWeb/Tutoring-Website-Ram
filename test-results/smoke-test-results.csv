@@ -1,6 +1,0 @@
-Test ID,Area,Scenario,Method,URL,Headers,Request Body,Expected Result,Actual Result,Status,Run Date,Notes
-SMK-001,Backend,Backend health endpoint responds,GET,http://localhost:4000/,None,None,HTTP 200 and backend health text,HTTP 200 with "Ramtin Website BE + API is running!",Pass,2026-07-08,Confirms Express server is reachable
-SMK-002,Backend,Users endpoint returns MongoDB data,GET,http://localhost:4000/users,None,None,HTTP 200 and JSON array of users,HTTP 200 and response body length 2402 bytes,Pass,2026-07-08,Confirms backend can read from MongoDB
-SMK-003,Backend Auth,Learner can login and receive JWT token,POST,http://localhost:4000/users/login,Content-Type: application/json,"{""email"":""learner1@example.com"",""password"":""test12345""}",HTTP 200 with token and dbUser,HTTP 200 with JWT token and dbUser learner1@example.com,Pass,2026-07-08,This is the Postman token scenario
-SMK-004,Frontend,Frontend dev server responds,GET,http://localhost:5175/,None,None,HTTP 200 and HTML document,HTTP 200 and HTML starts with <!doctype html>,Pass,2026-07-08,Frontend is currently running on port 5175
-SMK-005,Frontend Build,Production frontend build completes,N/A,npm run build,None,None,Vite build exits successfully,Build completed successfully with 51 modules transformed,Pass,2026-07-08,Confirms TypeScript/Vite build is healthy

@@ -22,7 +22,8 @@ on conflict (id) do update
 -- -----------------------------------------------------------------------------
 -- Site settings
 -- Shapes follow SiteContent in docs/ARCHITECTURE.md: 'content' holds
--- courses/examPrepTracks/reviews/faq, 'selectable_options' the dropdowns.
+-- courses/examPrepTracks/faq, 'selectable_options' the dropdowns.
+-- Reviews live in their own table (below).
 -- -----------------------------------------------------------------------------
 insert into public.site_settings (key, content)
 values
@@ -51,10 +52,6 @@ values
           "category": "Exam Prep",
           "description": "Data analysis, algebra, geometry essentials, and timing tactics for SAT sections."
         }
-      ],
-      "reviews": [
-        { "id": "review_1", "name": "L.M.", "rating": 5, "text": "Clear explanations and strong structure.", "status": "approved" },
-        { "id": "review_2", "name": "A.K.", "rating": 5, "text": "Helped me improve quickly before exams.", "status": "approved" }
       ],
       "faq": [
         {
@@ -86,6 +83,16 @@ values
   )
 on conflict (key) do update
   set content = excluded.content;
+
+-- -----------------------------------------------------------------------------
+-- Reviews: two published, one waiting for approval
+-- -----------------------------------------------------------------------------
+insert into public.reviews (id, student_id, name, rating, text, status)
+values
+  ('review_1', null,               'L.M.',         5, 'Clear explanations and strong structure.', 'approved'),
+  ('review_2', null,               'A.K.',         5, 'Helped me improve quickly before exams.',  'approved'),
+  ('review_3', 'user_dev_student', 'Student User', 4, 'Great help with integration.',            'pending')
+on conflict (id) do nothing;
 
 -- -----------------------------------------------------------------------------
 -- Learner courses for the dev student

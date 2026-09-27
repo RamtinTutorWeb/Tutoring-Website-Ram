@@ -1,11 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage } from "../../api/client";
-import { useContent } from "../../api/ContentProvider";
-import type { Course, SelectableOptionKey, SiteContent } from "../../api/types";
+import { useContent, type ContentPatch } from "../../api/ContentProvider";
+import { useCreateReview, useReviewAdmin } from "../../api/hooks";
+import type { Course, Review, SelectableOptionKey, SiteContent } from "../../api/types";
 import StarRating from "../../components/StarRating";
 import { uid } from "../../lib/id";
 
-// Admin editors for GET/PUT /content. Each save sends only the keys it changed.
+// Admin editors for GET/PUT /content (each save sends only the keys it changed) and /reviews.
 
 export const optionGroupLabels: Record<SelectableOptionKey, string> = {
   contactMethods: "Contact Methods",
@@ -43,7 +44,7 @@ function useContentSave() {
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState({ text: "", error: false });
 
-  async function run(patch: Partial<SiteContent>, success: string): Promise<boolean> {
+  async function run(patch: ContentPatch, success: string): Promise<boolean> {
     setSaving(true);
     try {
       await save(patch);
@@ -71,7 +72,7 @@ function readCourse(form: HTMLFormElement, category?: string): Omit<Course, "id"
 }
 
 /** Courses and exam tracks share one catalog; the "Exam Prep" category lives in `examPrepTracks`. */
-function placeCourse(content: SiteContent, course: Course): Pick<SiteContent, "courses" | "examPrepTracks"> {
+function placeCourse(content: SiteContent, course: Course): Pick<ContentPatch, "courses" | "examPrepTracks"> {
   const courses = content.courses.filter((item) => item.id !== course.id);
   const examPrepTracks = content.examPrepTracks.filter((item) => item.id !== course.id);
   if (course.category === EXAM_PREP_CATEGORY) examPrepTracks.push(course);
@@ -275,63 +276,104 @@ export function OptionsEditor({
   );
 }
 
+/** Reviews live in their own table: POST /reviews (admin -> approved), PATCH/DELETE /reviews/:id. */
 export function ReviewsEditor({ collapsible }: { collapsible?: boolean }) {
-  const { content, saving, run, feedbackLine } = useContentSave();
+  const { content, update } = useContent();
+  const createReview = useCreateReview();
+  const reviewAdmin = useReviewAdmin();
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState({ text: "", error: false });
   const reviews = content.reviews;
+
+  async function perform(action: () => Promise<void>, success: string): Promise<boolean> {
+    setBusy(true);
+    try {
+      await action();
+      setFeedback({ text: success, error: false });
+      return true;
+    } catch (err) {
+      setFeedback({ text: errorMessage(err, "Could not save the review."), error: true });
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function readReview(form: HTMLFormElement): Pick<Review, "name" | "rating" | "text"> {
+    const fd = new FormData(form);
+    return {
+      name: String(fd.get("name") ?? "").trim(),
+      rating: Math.max(1, Math.min(5, Number(fd.get("rating") ?? 5))),
+      text: String(fd.get("text") ?? "").trim()
+    };
+  }
+
+  function replaceReview(next: Review) {
+    update((current) => ({ ...current, reviews: current.reviews.map((item) => (item.id === next.id ? next : item)) }));
+  }
 
   async function handleAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
-    const fd = new FormData(form);
-    const review = {
-      id: uid(),
-      name: String(fd.get("name") ?? "").trim(),
-      rating: Math.max(1, Math.min(5, Number(fd.get("rating") ?? 5))),
-      text: String(fd.get("text") ?? "").trim(),
-      status: "approved" as const
-    };
-    if (await run({ reviews: [...reviews, review] }, "Review added.")) form.reset();
+    const fields = readReview(form);
+    const ok = await perform(async () => {
+      const created = await createReview(fields);
+      update((current) => ({ ...current, reviews: [...current.reviews, created] }));
+    }, "Review added.");
+    if (ok) form.reset();
   }
 
+  function handleEdit(e: FormEvent<HTMLFormElement>, id: string) {
+    e.preventDefault();
+    const fields = readReview(e.currentTarget);
+    void perform(async () => replaceReview(await reviewAdmin.update(id, fields)), "Review updated.");
+  }
+
+  function handleApprove(id: string) {
+    void perform(async () => replaceReview(await reviewAdmin.update(id, { status: "approved" })), "Review approved.");
+  }
+
+  function handleDelete(id: string) {
+    void perform(async () => {
+      await reviewAdmin.remove(id);
+      update((current) => ({ ...current, reviews: current.reviews.filter((item) => item.id !== id) }));
+    }, "Review deleted.");
+  }
+
+  const pendingCount = reviews.filter((review) => review.status === "pending").length;
+
   return (
-    <Panel title="Manage Reviews" collapsible={collapsible}>
+    <Panel title={pendingCount ? `Manage Reviews (${pendingCount} pending)` : "Manage Reviews"} collapsible={collapsible}>
       <form onSubmit={handleAdd}>
         <label>Name/Initials<input name="name" required /></label>
         <label>Rating (1-5)<input name="rating" type="number" min={1} max={5} required /></label>
         <label>Review<textarea name="text" rows={2} required /></label>
-        <button className="primary" type="submit" disabled={saving}>Add Review</button>
+        <button className="primary" type="submit" disabled={busy}>Add Review</button>
       </form>
       <div className="list">
         {reviews.map((review) => (
-          <div className="list-item" key={review.id}>
-            <strong>{review.name}</strong> <StarRating rating={Number(review.rating)} />
-            <p className="muted">Status: {review.status ?? "approved"}</p>
+          <details className="list-item course-detail" key={review.id}>
+            <summary>
+              <strong>{review.name}</strong> <StarRating rating={Number(review.rating)} />{" "}
+              <span className={`request-status status-${review.status === "pending" ? "new" : "accepted"}`}>{review.status ?? "approved"}</span>
+            </summary>
             <p>{review.text}</p>
-            <div className="row">
-              {review.status === "pending" ? (
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void run({
-                    reviews: reviews.map((item) => (item.id === review.id ? { ...item, status: "approved" } : item))
-                  }, "Review approved.")}
-                >
-                  Approve
-                </button>
-              ) : null}
-              <button
-                className="danger"
-                type="button"
-                disabled={saving}
-                onClick={() => void run({ reviews: reviews.filter((item) => item.id !== review.id) }, "Review deleted.")}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
+            <form onSubmit={(e) => handleEdit(e, review.id)}>
+              <label>Name/Initials<input name="name" defaultValue={review.name} required /></label>
+              <label>Rating (1-5)<input name="rating" type="number" min={1} max={5} defaultValue={review.rating} required /></label>
+              <label>Review<textarea name="text" rows={2} defaultValue={review.text} required /></label>
+              <div className="row">
+                <button type="submit" disabled={busy}>Save</button>
+                {review.status === "pending" ? (
+                  <button className="primary" type="button" disabled={busy} onClick={() => handleApprove(review.id)}>Approve</button>
+                ) : null}
+                <button className="danger" type="button" disabled={busy} onClick={() => handleDelete(review.id)}>Delete</button>
+              </div>
+            </form>
+          </details>
         ))}
       </div>
-      {feedbackLine}
+      <p className={`feedback ${feedback.error ? "error" : ""}`} role="status">{feedback.text}</p>
     </Panel>
   );
 }

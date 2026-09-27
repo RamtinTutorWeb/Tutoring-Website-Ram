@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { errorMessage } from "../api/client";
+import { ApiError, errorMessage } from "../api/client";
 import { useCreateReview } from "../api/hooks";
 import { useMe } from "../api/MeProvider";
 import { useSession } from "../auth/session";
@@ -31,7 +31,10 @@ export default function ReviewForm() {
       setFeedback({ text: "Thanks! Your review will appear after approval.", error: false });
       form.reset();
     } catch (err) {
-      setFeedback({ text: errorMessage(err, "Could not submit your review."), error: true });
+      const text = err instanceof ApiError && err.status === 429
+        ? "You already have reviews waiting for approval. Please try again once they have been reviewed."
+        : errorMessage(err, "Could not submit your review.");
+      setFeedback({ text, error: true });
     } finally {
       setSubmitting(false);
     }

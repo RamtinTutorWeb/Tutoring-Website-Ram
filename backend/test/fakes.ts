@@ -8,7 +8,15 @@ import { vi } from 'vitest';
 import type * as realDb from '../src/db.js';
 import { conflict } from '../src/errors.js';
 import type { ClerkUserInfo } from '../src/lib/clerk.js';
-import type { Assessment, Booking, LearnerCourse, Profile, SessionRequest } from '../src/types.js';
+import type {
+  Assessment,
+  Booking,
+  LearnerCourse,
+  Profile,
+  Review,
+  ReviewStatus,
+  SessionRequest,
+} from '../src/types.js';
 
 type Db = typeof realDb;
 
@@ -20,6 +28,7 @@ export const state = {
   learnerCourses: [] as LearnerCourse[],
   assessments: [] as Assessment[],
   webhookEvents: new Set<string>(),
+  reviews: [] as Array<Review & { studentId: string | null; status: ReviewStatus }>,
 };
 
 export const clerkUsers = new Map<string, ClerkUserInfo>();
@@ -32,6 +41,7 @@ export function resetState(): void {
   state.learnerCourses.length = 0;
   state.assessments.length = 0;
   state.webhookEvents.clear();
+  state.reviews.length = 0;
   clerkUsers.clear();
   clerkUsers.set('user_student', {
     id: 'user_student',
@@ -71,8 +81,9 @@ export const fakeDb: Db = {
     if (!state.profiles.has(p.id)) state.profiles.set(p.id, { ...p, createdAt: now() });
     return state.profiles.get(p.id)!;
   }),
-  upsertProfile: vi.fn(async (p) => {
-    state.profiles.set(p.id, { ...p, createdAt: state.profiles.get(p.id)?.createdAt ?? now() });
+  syncProfileFromClerk: vi.fn(async (p) => {
+    const existing = state.profiles.get(p.id);
+    state.profiles.set(p.id, existing ? { ...existing, email: p.email, role: p.role } : { ...p, createdAt: now() });
   }),
   updateProfile: vi.fn(async (id, patch) => {
     const existing = state.profiles.get(id);
@@ -122,6 +133,14 @@ export const fakeDb: Db = {
   listBookings: vi.fn(async (studentId) =>
     [...state.bookings.values()].filter((b) => !studentId || b.studentId === studentId),
   ),
+  getBookingLinks: vi.fn(async (uri) => {
+    const b = state.bookings.get(uri);
+    return b ? { requestId: b.requestId, studentId: b.studentId } : null;
+  }),
+  countScheduledBookings: vi.fn(
+    async (requestId) =>
+      [...state.bookings.values()].filter((b) => b.requestId === requestId && b.status === 'scheduled').length,
+  ),
   upsertBooking: vi.fn(async (b) => {
     const existing = state.bookings.get(b.calendlyInviteeUri);
     state.bookings.set(b.calendlyInviteeUri, {
@@ -170,6 +189,34 @@ export const fakeDb: Db = {
     return row;
   }),
   listAssessments: vi.fn(async (studentId) => state.assessments.filter((a) => !studentId || a.studentId === studentId)),
+
+  listReviews: vi.fn(async (includePending) =>
+    state.reviews
+      .filter((r) => includePending || r.status === 'approved')
+      .map(({ studentId: _s, ...r }) => r),
+  ),
+  createReview: vi.fn(async (r) => {
+    const row = { ...r, id: randomUUID() };
+    state.reviews.push(row);
+    const { studentId: _s, ...review } = row;
+    return review;
+  }),
+  countPendingReviews: vi.fn(
+    async (studentId) => state.reviews.filter((r) => r.studentId === studentId && r.status === 'pending').length,
+  ),
+  updateReview: vi.fn(async (id, patch) => {
+    const row = state.reviews.find((r) => r.id === id);
+    if (!row) return null;
+    Object.assign(row, patch);
+    const { studentId: _s, ...review } = row;
+    return review;
+  }),
+  deleteReview: vi.fn(async (id) => {
+    const i = state.reviews.findIndex((r) => r.id === id);
+    if (i < 0) return false;
+    state.reviews.splice(i, 1);
+    return true;
+  }),
 
   recordWebhookEvent: vi.fn(async (provider, eventId) => {
     const key = `${provider}:${eventId}`;

@@ -3,7 +3,12 @@
   "build": {
     "builder": "RAILPACK",
     "buildCommand": "npm ci --workspace backend --include-workspace-root=false --include=dev && npm run build --workspace backend",
-    "watchPatterns": ["backend/**", "package-lock.json"]
+    "watchPatterns": [
+      "backend/**",
+      "package.json",
+      "package-lock.json",
+      "railway.json"
+    ]
   },
   "deploy": {
     "startCommand": "npm start --workspace backend",

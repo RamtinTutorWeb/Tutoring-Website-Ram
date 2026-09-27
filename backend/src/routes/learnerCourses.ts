@@ -4,7 +4,7 @@ import * as db from '../db.js';
 import { badRequest, notFound } from '../errors.js';
 import { ensureProfile, ownerFilter, requireAdmin, requireAuth, viewerOf } from '../middleware/auth.js';
 import { COURSE_STATUSES } from '../types.js';
-import { loadContent } from './content.js';
+import { loadSettingsContent } from './content.js';
 import { uuidParam } from './params.js';
 
 const createSchema = z.object({
@@ -22,7 +22,7 @@ learnerCoursesRouter.get('/learner-courses', requireAuth, async (req, res) => {
 /** Students register themselves; `studentId` is honored only for admins (assigning a course). */
 learnerCoursesRouter.post('/learner-courses', requireAuth, async (req, res) => {
   const { courseId, studentId: requested } = createSchema.parse(req.body ?? {});
-  const content = await loadContent();
+  const content = await loadSettingsContent();
   if (![...content.courses, ...content.examPrepTracks].some((c) => c.id === courseId)) {
     throw badRequest('Unknown courseId');
   }

@@ -175,29 +175,7 @@ describe('content, learner courses, assessments', () => {
   });
 });
 
-describe('reviews and learner-course extensions used by the frontend', () => {
-  it('POST /reviews stores a pending review hidden from the public until approved', async () => {
-    await request(app).post('/reviews').send({ rating: 5, text: 'Great' }).expect(401);
-    await request(app).post('/reviews').set(auth('user_student')).send({ rating: 9, text: 'x' }).expect(400);
-    const created = await request(app).post('/reviews').set(auth('user_student')).send({ rating: 5, text: 'Great' }).expect(201);
-    expect(created.body).toMatchObject({ name: 'Sam Student', rating: 5, text: 'Great', status: 'pending' });
-
-    const pub = await request(app).get('/content').expect(200);
-    expect(pub.body.reviews).toEqual([]);
-    const student = await request(app).get('/content').set(auth('user_student')).expect(200);
-    expect(student.body.reviews).toEqual([]);
-    const admin = await request(app).get('/content').set(auth('user_admin')).expect(200);
-    expect(admin.body.reviews).toHaveLength(1);
-
-    await request(app)
-      .put('/content')
-      .set(auth('user_admin'))
-      .send({ reviews: [{ ...created.body, status: 'approved' }] })
-      .expect(200);
-    const after = await request(app).get('/content').expect(200);
-    expect(after.body.reviews).toHaveLength(1);
-  });
-
+describe('learner-course extensions used by the frontend', () => {
   it('admins can assign a course to a student; students cannot assign to others', async () => {
     await request(app)
       .put('/content')

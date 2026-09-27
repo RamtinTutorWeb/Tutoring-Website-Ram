@@ -124,7 +124,7 @@ webhooksRouter.post('/webhooks/clerk', async (req, res) => {
           console.warn(`clerk webhook: user ${data.id} has no email address; profile not written`);
           return;
         }
-        await db.upsertProfile(profile);
+        await db.syncProfileFromClerk(profile);
         return;
       }
       case 'user.deleted':
@@ -150,6 +150,10 @@ interface CalendlyInvitee {
   tracking?: { utm_content?: string | null } | null;
   cancellation?: { reason?: string | null } | null;
   scheduled_event?: { name?: string | null; start_time?: string; end_time?: string } | null;
+  /** On invitee.canceled: true when the cancel is half of a reschedule. */
+  rescheduled?: boolean | null;
+  /** On the invitee.created half of a reschedule: the invitee it replaces. */
+  old_invitee?: string | null;
 }
 
 interface CalendlyBody {
@@ -174,10 +178,23 @@ async function applyInviteeEvent(body: CalendlyBody, status: BookingStatus): Pro
   const email = invitee.email?.trim().toLowerCase() || null;
 
   // /book?request=<id> passes the request id through Calendly as utm_content.
+  // A rescheduled invitee may not carry it: fall back to the link already stored
+  // on this invitee's booking, then to the booking it replaced.
   const utm = invitee.tracking?.utm_content?.trim();
-  const request = utm && isUuid(utm) ? await db.getRequest(utm) : null;
+  let requestId = utm && isUuid(utm) ? utm : null;
+  for (const uri of [invitee.uri, invitee.old_invitee]) {
+    if (requestId || !uri) break;
+    requestId = (await db.getBookingLinks(uri))?.requestId ?? null;
+  }
+  const request = requestId ? await db.getRequest(requestId) : null;
 
-  const studentId = (email ? await db.findProfileIdByEmail(email) : null) ?? request?.studentId ?? null;
+  // The request says who it's for; matching by invitee email is only a fallback
+  // (someone else's email may be typed into Calendly, or a guest may share one).
+  const studentId = request
+    ? request.studentId
+    : email
+      ? await db.findProfileIdByEmail(email)
+      : null;
 
   await db.upsertBooking({
     calendlyInviteeUri: invitee.uri,
@@ -195,10 +212,15 @@ async function applyInviteeEvent(body: CalendlyBody, status: BookingStatus): Pro
   });
 
   if (!request) return;
-  if (status === 'scheduled' && request.status !== 'scheduled') {
-    await db.setRequestStatus(request.id, 'scheduled');
-  } else if (status === 'canceled' && request.status === 'scheduled') {
-    // Let the student pick another time from the same link.
+  if (status === 'scheduled') {
+    if (request.status !== 'scheduled') await db.setRequestStatus(request.id, 'scheduled');
+    return;
+  }
+  // Canceled. A reschedule's new booking arrives as its own invitee.created, and
+  // another invitee (e.g. a group event) may still hold a slot: only reopen the
+  // request so the student can rebook when nothing is left.
+  if (invitee.rescheduled || request.status !== 'scheduled') return;
+  if ((await db.countScheduledBookings(request.id)) === 0) {
     await db.setRequestStatus(request.id, 'accepted');
   }
 }

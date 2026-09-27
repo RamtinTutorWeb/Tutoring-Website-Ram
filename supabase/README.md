@@ -13,8 +13,10 @@ supabase/
 ├── config.toml                              local stack (Postgres + PostgREST + Studio only)
 ├── migrations/
 │   ├── 20260903000000_init.sql              schema (its RLS policies are removed by the next file)
-│   └── 20260927000000_backend_only.sql      contact-form requests, assessments.total/recommendation,
-│                                            lock out anon/authenticated, default selectable options
+│   ├── 20260927000000_backend_only.sql      contact-form requests, assessments.total/recommendation,
+│   │                                        lock out anon/authenticated, default selectable options
+│   └── 20260928000000_reviews_table_group_bookings.sql
+│                                            reviews table (moved out of site_settings), bookings.calendly_event_uri not unique
 ├── seed.sql                                 local dev data (never for production)
 └── README.md
 ```
@@ -61,9 +63,10 @@ All access goes through the backend; see `docs/ARCHITECTURE.md` for who can do w
 | Table | Purpose |
 |---|---|
 | `profiles` | One row per Clerk user (`id` = Clerk user id). `role` mirrors Clerk `publicMetadata.role`. Written by the Clerk webhook and `GET /me`. |
-| `site_settings` | JSON blobs by key: `content` (courses, examPrepTracks, reviews, faq), `selectable_options` (dropdowns). `session_settings` is legacy and unused. |
+| `site_settings` | JSON blobs by key: `content` (courses, examPrepTracks, faq), `selectable_options` (dropdowns). `session_settings` is legacy and unused. |
+| `reviews` | Testimonials. `status` `pending` (student-submitted) or `approved` (public). `student_id` is the author, null for legacy/admin-seeded rows. |
 | `session_requests` | Contact-form requests. `student_id` is null for guests. `status`: `new`, `accepted`, `declined`, `scheduled`, `closed`. |
-| `bookings` | Mirror of Calendly invitees, keyed on `calendly_invitee_uri`; linked to a request via `utm_content`. `status`: `scheduled`, `canceled`. |
+| `bookings` | Mirror of Calendly invitees, unique on `calendly_invitee_uri` (a group event has one `calendly_event_uri`, many invitees). Linked to a request via `utm_content`. `status`: `scheduled`, `canceled`. |
 | `assessments` | Placement answers with `score`, `total`, `recommendation`. |
 | `learner_courses` | A student's courses with progress (`registered`, `in-progress`, `passed`). Unique per student and course. |
 | `webhook_events` | Idempotency ledger keyed on `(provider, event_id)` for Clerk and Calendly. |

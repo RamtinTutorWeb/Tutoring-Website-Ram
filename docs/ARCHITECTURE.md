@@ -81,7 +81,12 @@ with 400/401/403/404/409/500. `auth` = valid Clerk session required; `admin` = r
 | POST | `/learner-courses` | auth | `{ courseId, studentId? }` -> `LearnerCourse` (status registered; 409 if exists). `studentId` only honored for admin (assign); students always self |
 | PATCH | `/learner-courses/:id` | admin | `{ status }` -> `LearnerCourse` |
 | DELETE | `/learner-courses/:id` | auth | admin: any; student: own. 204 |
-| POST | `/reviews` | auth | `{ rating: 1-5, text, name? }` -> `Review` appended to content.reviews with `status: "pending"`; name defaults to profile fullName |
+| POST | `/reviews` | auth | `{ rating: 1-5, text, name? }` -> 201 `Review`; student -> `pending`, admin -> `approved`; name defaults to profile fullName. Rate-limited per user; 429 when too many pending |
+| PATCH | `/reviews/:id` | admin | `{ status?, name?, rating?, text? }` -> `Review` |
+| DELETE | `/reviews/:id` | admin | 204 |
+
+Reviews live in their own `reviews` table. `GET /content` returns `reviews` (approved only; admin gets all);
+`PUT /content` does NOT accept `reviews` (400 if present) — use the `/reviews` routes.
 | POST | `/assessments` | auth | `{ subject, answers, score, total, recommendation }` -> `Assessment` |
 | GET | `/assessments` | auth | student: own; admin: all |
 | GET | `/admin/users` | admin | `Profile[]` |

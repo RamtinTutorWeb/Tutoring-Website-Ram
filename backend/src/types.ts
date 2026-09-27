@@ -18,12 +18,15 @@ export interface Course {
   description: string;
 }
 
+export const REVIEW_STATUSES = ['pending', 'approved'] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+
 export interface Review {
   id: string;
   name: string;
   rating: number;
   text: string;
-  status?: 'pending' | 'approved';
+  status?: ReviewStatus;
 }
 
 export interface FaqItem {

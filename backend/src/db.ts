@@ -12,6 +12,8 @@ import type {
   LearnerCourse,
   Profile,
   RequestStatus,
+  Review,
+  ReviewStatus,
   Role,
   SessionRequest,
 } from './types.js';
@@ -77,12 +79,15 @@ export async function insertProfileIfMissing(p: ProfileWrite): Promise<Profile> 
   return stored;
 }
 
-/** Full overwrite from Clerk (webhook). */
-export async function upsertProfile(p: ProfileWrite): Promise<void> {
-  const { error } = await getSupabase()
-    .from('profiles')
-    .upsert({ id: p.id, email: p.email, full_name: p.fullName, phone: p.phone, role: p.role }, { onConflict: 'id' });
-  check(error, 'profiles upsert');
+/**
+ * Clerk webhook sync. A new row gets everything; an existing row only has its
+ * email and role mirrored, so a name/phone edited via PATCH /me survives
+ * later user.updated events.
+ */
+export async function syncProfileFromClerk(p: ProfileWrite): Promise<void> {
+  await insertProfileIfMissing(p);
+  const { error } = await getSupabase().from('profiles').update({ email: p.email, role: p.role }).eq('id', p.id);
+  check(error, 'profiles sync');
 }
 
 export async function updateProfile(
@@ -310,6 +315,29 @@ export async function listBookings(studentId?: string): Promise<Booking[]> {
   return (data ?? []).map(toBooking);
 }
 
+/** Request/student links of an existing booking (to carry them over on a Calendly reschedule). */
+export async function getBookingLinks(
+  calendlyInviteeUri: string,
+): Promise<{ requestId: string | null; studentId: string | null } | null> {
+  const { data, error } = await getSupabase()
+    .from('bookings')
+    .select('request_id, student_id')
+    .eq('calendly_invitee_uri', calendlyInviteeUri)
+    .maybeSingle<{ request_id: string | null; student_id: string | null }>();
+  check(error, 'bookings select');
+  return data ? { requestId: data.request_id, studentId: data.student_id } : null;
+}
+
+export async function countScheduledBookings(requestId: string): Promise<number> {
+  const { count, error } = await getSupabase()
+    .from('bookings')
+    .select('id', { count: 'exact', head: true })
+    .eq('request_id', requestId)
+    .eq('status', 'scheduled');
+  check(error, 'bookings count');
+  return count ?? 0;
+}
+
 export interface BookingUpsert {
   calendlyInviteeUri: string;
   calendlyEventUri: string;
@@ -475,6 +503,78 @@ export async function listAssessments(studentId?: string): Promise<Assessment[]>
   const { data, error } = await query.order('created_at', { ascending: false }).returns<AssessmentRow[]>();
   check(error, 'assessments list');
   return (data ?? []).map(toAssessment);
+}
+
+// --- reviews -----------------------------------------------------------------------------
+
+interface ReviewRow {
+  id: string;
+  name: string;
+  rating: number;
+  text: string;
+  status: ReviewStatus;
+}
+
+const REVIEW_COLS = 'id, name, rating, text, status';
+
+const toReview = (r: ReviewRow): Review => ({ id: r.id, name: r.name, rating: r.rating, text: r.text, status: r.status });
+
+/** Oldest first (the order they were added). */
+export async function listReviews(includePending: boolean): Promise<Review[]> {
+  let query = getSupabase().from('reviews').select(REVIEW_COLS);
+  if (!includePending) query = query.eq('status', 'approved');
+  const { data, error } = await query.order('created_at', { ascending: true }).returns<ReviewRow[]>();
+  check(error, 'reviews list');
+  return (data ?? []).map(toReview);
+}
+
+export interface ReviewInsert {
+  studentId: string;
+  name: string;
+  rating: number;
+  text: string;
+  status: ReviewStatus;
+}
+
+export async function createReview(r: ReviewInsert): Promise<Review> {
+  const { data, error } = await getSupabase()
+    .from('reviews')
+    .insert({ student_id: r.studentId, name: r.name, rating: r.rating, text: r.text, status: r.status })
+    .select(REVIEW_COLS)
+    .single<ReviewRow>();
+  check(error, 'reviews insert');
+  return toReview(data!);
+}
+
+export async function countPendingReviews(studentId: string): Promise<number> {
+  const { count, error } = await getSupabase()
+    .from('reviews')
+    .select('id', { count: 'exact', head: true })
+    .eq('student_id', studentId)
+    .eq('status', 'pending');
+  check(error, 'reviews count');
+  return count ?? 0;
+}
+
+export async function updateReview(
+  id: string,
+  patch: Partial<Pick<Review, 'name' | 'rating' | 'text' | 'status'>>,
+): Promise<Review | null> {
+  const { data, error } = await getSupabase()
+    .from('reviews')
+    .update(patch)
+    .eq('id', id)
+    .select(REVIEW_COLS)
+    .maybeSingle<ReviewRow>();
+  check(error, 'reviews update');
+  return data ? toReview(data) : null;
+}
+
+/** Returns false when there was no such review. */
+export async function deleteReview(id: string): Promise<boolean> {
+  const { data, error } = await getSupabase().from('reviews').delete().eq('id', id).select('id');
+  check(error, 'reviews delete');
+  return (data?.length ?? 0) > 0;
 }
 
 // --- webhook_events (idempotency ledger) ----------------------------------------------------

@@ -39,6 +39,7 @@ Check: `curl https://<api>/health` → `configured` flags all `true` once every 
 Import the repo, **root directory = repo root** (`vercel.json` builds only the frontend workspace).
 Env (Production + Preview): `VITE_CLERK_PUBLISHABLE_KEY`, `VITE_API_URL` (= Railway origin), `VITE_CALENDLY_URL`.
 Then set Railway `FRONTEND_URL` to the Vercel origin(s), comma-separated, and redeploy the API (CORS + Clerk authorized parties).
+Preview deployments get random `*.vercel.app` origins that are not in `FRONTEND_URL`, so their API calls are blocked by CORS. Test on production (or add a fixed preview alias to `FRONTEND_URL`).
 
 ## 5. Clerk webhook
 

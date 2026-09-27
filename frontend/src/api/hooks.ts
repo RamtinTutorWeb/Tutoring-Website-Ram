@@ -29,9 +29,15 @@ export interface Resource<T> {
   setData: (update: (current: T | null) => T | null) => void;
 }
 
-/** GET `path` on mount / when it changes. Pass `null` to skip (e.g. signed out). */
-export function useResource<T>(path: string | null): Resource<T> {
+/**
+ * GET `path` on mount and whenever `path` or the viewer changes. Pass `path = null` to skip
+ * (e.g. signed out). Responses are viewer-dependent, so by default the viewer is the signed-in
+ * user id; pass `viewerKey` to override it, or `null` to hold (keep current data, don't fetch yet).
+ */
+export function useResource<T>(path: string | null, viewerKey?: string | null): Resource<T> {
   const api = useApi();
+  const { userId } = useSession();
+  const key = viewerKey === undefined ? userId ?? "anon" : viewerKey;
   const [data, setDataState] = useState<T | null>(null);
   const [loading, setLoading] = useState(path !== null);
   const [error, setError] = useState("");
@@ -57,9 +63,11 @@ export function useResource<T>(path: string | null): Resource<T> {
     }
   }, [api, path]);
 
+  // `key` is intentionally a dependency: a new viewer means a new response for the same path.
   useEffect(() => {
+    if (key === null) return;
     void refetch();
-  }, [refetch]);
+  }, [refetch, key]);
 
   const setData = useCallback((update: (current: T | null) => T | null) => setDataState(update), []);
 
@@ -134,10 +142,19 @@ export function useCreateAssessment() {
   return useCallback((assessment: NewAssessment) => api.post<Assessment>("/assessments", assessment), [api]);
 }
 
-/** Creates a pending review; it shows on the site after an admin approves it in Settings. */
+/** Student reviews are created `pending` (429 when too many are waiting); admin-created ones are `approved`. */
 export function useCreateReview() {
   const api = useApi();
   return useCallback((review: NewReview) => api.post<Review>("/reviews", review), [api]);
+}
+
+/** Admin review moderation (`/reviews/:id`). Reviews are not part of `PUT /content`. */
+export function useReviewAdmin() {
+  const api = useApi();
+  return useMemo(() => ({
+    update: (id: string, patch: Partial<Omit<Review, "id">>) => api.patch<Review>(`/reviews/${encodeURIComponent(id)}`, patch),
+    remove: (id: string) => api.delete(`/reviews/${encodeURIComponent(id)}`)
+  }), [api]);
 }
 
 export function useAdminUsers(enabled: boolean) {

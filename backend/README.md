@@ -31,7 +31,6 @@ src/
   lib/calendly.ts      webhook HMAC verify, subscription registration
   lib/content.ts       selectable option defaults + normalization
   routes/*.ts          one router per resource; webhooks.ts takes raw bodies
-                       (reviews.ts + DELETE/assign on learner-courses extend the contract for the frontend)
 test/                  vitest; db.ts and lib/clerk.ts are replaced by in-memory fakes
 ```
 
@@ -48,10 +47,15 @@ test/                  vitest; db.ts and lib/clerk.ts are replaced by in-memory 
 
 ## Webhooks
 
-- `POST /webhooks/clerk`: Svix-signed. Upserts/deletes `profiles`.
+- `POST /webhooks/clerk`: Svix-signed. Inserts/deletes `profiles`; on an existing row only
+  email and role are mirrored, so a name/phone edited via `PATCH /me` is kept.
 - `POST /webhooks/calendly`: `Calendly-Webhook-Signature` HMAC, 3 minute tolerance.
-  Upserts `bookings` by invitee URI; `utm_content=<request id>` links the booking to
-  a request and marks it `scheduled` (a cancel puts it back to `accepted`).
+  Upserts `bookings` by invitee URI (group events: many invitees per event URI).
+  `utm_content=<request id>` links the booking to a request and marks it `scheduled`;
+  without it the link comes from this invitee's existing row or its `old_invitee`
+  (reschedules). The student is the request's student; invitee-email matching is only
+  used when there is no request. A cancel reopens the request (`accepted`) only when it
+  isn't half of a reschedule and no other booking for the request is still scheduled.
 - Both are idempotent via `webhook_events`; a failed event is un-recorded so the
   provider's retry is processed.
 - Register Calendly once: `curl -X POST $PUBLIC_API_URL/admin/calendly/register-webhook -H "x-admin-token: $ADMIN_API_TOKEN"`.

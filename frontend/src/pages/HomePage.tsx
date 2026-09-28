@@ -1,14 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useContent } from "../api/ContentProvider";
+import { useMe } from "../api/MeProvider";
+import LoadState from "../components/LoadState";
+import ReviewForm from "../components/ReviewForm";
 import StarRating from "../components/StarRating";
-import { useAppContext } from "../context/AppContext";
+import { useSession } from "../auth/session";
 
 export default function HomePage() {
-  const { db, currentUser } = useAppContext();
+  const { content, loading, error, refetch } = useContent();
+  const { isSignedIn } = useSession();
+  const { isAdmin } = useMe();
   const navigate = useNavigate();
   const [faqOpenMap, setFaqOpenMap] = useState<Record<string, boolean>>({});
-  const isAdmin = currentUser?.role === "admin";
-  const canUseAssessment = !currentUser || currentUser.role !== "admin";
+  const approvedReviews = content.reviews.filter((review) => review.status !== "pending");
   const primaryAction = isAdmin ? "/dashboard" : "/contact";
   const primaryLabel = isAdmin ? "Open Admin Dashboard" : "Get Started";
   const contactLabel = isAdmin ? "Open Contact Operations" : "Contact Me";
@@ -48,35 +53,42 @@ export default function HomePage() {
 
           <section className="card">
             <h3>Student Reviews</h3>
+            <LoadState loading={loading} error={error} onRetry={() => void refetch()} />
             <div id="reviews-list" className="list">
-              {db.reviews.length ? (
-                db.reviews.filter((review) => review.status !== "pending").map((review) => (
+              {approvedReviews.length ? (
+                approvedReviews.map((review) => (
                   <div className="list-item" key={review.id}>
                     <strong>{review.name}</strong> <StarRating rating={Number(review.rating)} />
                     <p>{review.text}</p>
                   </div>
                 ))
-              ) : (
+              ) : !loading ? (
                 <div className="list-item muted">No reviews yet</div>
-              )}
+              ) : null}
             </div>
           </section>
+
+          <ReviewForm />
 
           <section className="card">
             <h3>Frequently Asked Questions</h3>
             <div id="faq-list" className="accordion">
-              {db.faq.length ? (
-                db.faq.map((faq) => (
+              {content.faq.length ? (
+                content.faq.map((faq) => (
                   <div className="accordion-item" key={faq.id}>
-                    <button className="accordion-q" onClick={() => setFaqOpenMap((prev) => ({ ...prev, [faq.id]: !prev[faq.id] }))}>
+                    <button
+                      className="accordion-q"
+                      aria-expanded={Boolean(faqOpenMap[faq.id])}
+                      onClick={() => setFaqOpenMap((prev) => ({ ...prev, [faq.id]: !prev[faq.id] }))}
+                    >
                       {faq.question}
                     </button>
                     <div className={`accordion-a ${faqOpenMap[faq.id] ? "" : "hidden"}`}>{faq.answer}</div>
                   </div>
                 ))
-              ) : (
+              ) : !loading ? (
                 <div className="list-item muted">No FAQ items yet.</div>
-              )}
+              ) : null}
             </div>
             <button className="primary" onClick={() => navigate("/contact")}>{contactLabel}</button>
           </section>
@@ -85,15 +97,15 @@ export default function HomePage() {
         <aside className="home-side">
           <section className="card side-panel top">
             <div className="side-head">
-              <h3>{currentUser ? "Your Workspace" : "Login to Your Account"}</h3>
-              <button className="primary" onClick={() => navigate(currentUser ? "/dashboard" : "/login")}>
-                {currentUser ? "Dashboard" : "Login"}
+              <h3>{isSignedIn ? "Your Workspace" : "Sign In to Your Account"}</h3>
+              <button className="primary" onClick={() => navigate(isSignedIn ? "/dashboard" : "/sign-in")}>
+                {isSignedIn ? "Dashboard" : "Sign In"}
               </button>
             </div>
             <p className="muted">
               {isAdmin
                 ? "Manage students, courses, requests, and site content."
-                : "Access assessments, booking history, and progress records."}
+                : "Access assessments, bookings, and progress records."}
             </p>
           </section>
 
@@ -102,10 +114,10 @@ export default function HomePage() {
             <p className="muted">Mechanics, algebra, and exam strategy with step-by-step guidance.</p>
             <ul className="quick-links">
               <li><button onClick={() => navigate("/courses")}>{isAdmin ? "Manage courses" : "See course topics"}</button></li>
-              <li><button onClick={() => navigate(isAdmin ? "/exam-prep" : canUseAssessment ? "/assessment" : "/dashboard")}>
-                {isAdmin ? "Manage exam prep" : canUseAssessment ? "Do assessment" : "Open dashboard"}
+              <li><button onClick={() => navigate(isAdmin ? "/exam-prep" : "/assessment")}>
+                {isAdmin ? "Manage exam prep" : "Do assessment"}
               </button></li>
-              <li><button onClick={() => navigate("/contact")}>{isAdmin ? "Review requests" : "Tutoring request"}</button></li>
+              <li><button onClick={() => navigate(isAdmin ? "/dashboard" : "/contact")}>{isAdmin ? "Review requests" : "Tutoring request"}</button></li>
             </ul>
           </section>
 

@@ -5,12 +5,12 @@ export default function PolicyPage() {
       <div className="grid-2">
         <div className="card">
           <h3>Session Policy</h3>
-          <p>Students should reserve sessions through the available calendar slots or confirmed instructor communication.</p>
-          <p>Cancellations and changes should be requested as early as possible so the slot can be reopened.</p>
+          <p>Send a tutoring request first. Once it is accepted you will receive a link to book a time through our online scheduler.</p>
+          <p>Cancellations and changes should be made as early as possible using the links in your booking confirmation email.</p>
         </div>
         <div className="card">
           <h3>Account Policy</h3>
-          <p>Users are responsible for keeping login information private. Admins can trigger reset links when students need account help.</p>
+          <p>Users are responsible for keeping login information private. Password resets and sign-in methods are managed from your account menu.</p>
           <p>Course progress and request details are used only to support tutoring operations.</p>
         </div>
       </div>

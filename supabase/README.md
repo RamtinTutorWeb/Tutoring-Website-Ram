@@ -1,98 +1,83 @@
 # Supabase (Postgres) for TutorPro
 
-This folder holds the database schema for the Supabase migration. Identity comes from **Clerk**, not Supabase Auth; Supabase only stores data and enforces row-level security (RLS) against Clerk-issued JWTs.
+Supabase is used as **Postgres only**. The browser never talks to it: the
+Railway backend (`backend/`) is the only client and connects with the
+**service-role** key. Identity comes from Clerk, not Supabase Auth.
+
+RLS is enabled on every table with **no policies**, and `anon` / `authenticated`
+hold no table privileges, so a leaked anon key can read or write nothing. The
+service role bypasses RLS.
 
 ```
 supabase/
+├── config.toml                              local stack (Postgres + PostgREST + Studio only)
 ├── migrations/
-│   └── 20260903000000_init.sql   schema, RLS, grants
-├── seed.sql                       local dev data (never for production)
+│   ├── 20260903000000_init.sql              schema (its RLS policies are removed by the next file)
+│   ├── 20260927000000_backend_only.sql      contact-form requests, assessments.total/recommendation,
+│   │                                        lock out anon/authenticated, default selectable options
+│   └── 20260928000000_reviews_table_group_bookings.sql
+│                                            reviews table (moved out of site_settings), bookings.calendly_event_uri not unique
+├── seed.sql                                 local dev data (never for production)
 └── README.md
 ```
 
-`supabase init` is **not** needed. The migrations directory is already laid out the way the CLI expects. The CLI will create `config.toml` on first `supabase start` if it is missing.
-
 ## Apply to a hosted project
-
-Prerequisites: [Supabase CLI](https://supabase.com/docs/guides/cli) and a project created in the dashboard.
 
 ```bash
 # from the repo root
 supabase login
 supabase link --project-ref <your-project-ref>
-supabase db push            # applies every file in supabase/migrations
+supabase db push            # applies every file in supabase/migrations, in order
 ```
 
-No CLI? Open the dashboard **SQL Editor**, paste the contents of `migrations/20260903000000_init.sql`, and run it. The file is safe to re-run.
+No CLI? Paste each migration into the dashboard **SQL Editor** in filename order.
+Both files are safe to re-run. Do **not** run `seed.sql` against a hosted project.
 
-Do **not** run `seed.sql` against a hosted project. It inserts placeholder profile ids that are not real Clerk users.
+Then give the backend `SUPABASE_URL` (Project Settings > API > Project URL) and
+`SUPABASE_SERVICE_ROLE_KEY` (the `service_role` / secret key). Nothing goes in
+the frontend.
 
 ## Run locally
 
 Requires Docker.
 
 ```bash
-supabase start              # starts Postgres, PostgREST, Studio; applies migrations + seed.sql
-supabase status             # prints API URL, anon key, service_role key, Studio URL
+supabase start              # applies migrations + seed.sql
 supabase db reset           # drop, re-migrate, re-seed
 supabase stop
 ```
 
-Put the printed values into `frontend/.env.local`:
+`config.toml` disables Supabase Auth, so `supabase status` does not print API
+keys. Use the CLI's standard local demo service-role key (the JWT signed with the
+default local secret `super-secret-jwt-token-with-at-least-32-characters-long`):
 
 ```
-VITE_SUPABASE_URL=http://127.0.0.1:54321
-VITE_SUPABASE_ANON_KEY=<anon key from supabase status>
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
 ```
-
-The frontend treats Supabase as disabled until both variables are set, so the current Express/Mongo app keeps working unchanged.
-
-## Enable Clerk as the auth provider
-
-Supabase must be told to accept Clerk session tokens. Once configured, `auth.jwt()->>'sub'` in Postgres is the Clerk user id and `auth.jwt()->>'role'` is `authenticated`.
-
-1. **Clerk dashboard**: open *Configure* (or *Integrations*) and enable the **Supabase** integration. Copy the Clerk domain it shows, e.g. `your-app.clerk.accounts.dev` or `clerk.yourdomain.com`.
-2. **Supabase dashboard**: *Authentication* > *Sign In / Providers* > *Third-party auth* > *Add provider* > **Clerk**. Paste that domain.
-3. **Local dev**: add the same to `supabase/config.toml`:
-
-   ```toml
-   [auth.third_party.clerk]
-   enabled = true
-   domain = "your-app.clerk.accounts.dev"
-   ```
-
-4. **Frontend**: the client in `frontend/src/platform/db/client.ts` is created with supabase-js's `accessToken` option, which calls Clerk's `getToken()` for every request. No Supabase Auth session is ever created.
-
-Webhook handlers (Clerk `user.*`, Calendly `invitee.*`) run server-side with the **service_role** key. That key bypasses RLS, so keep it out of the frontend bundle and out of any `VITE_*` variable.
 
 ## Tables
 
-| Table | Purpose | Who can read | Who can write |
-|---|---|---|---|
-| `profiles` | One row per Clerk user. `id` is the Clerk user id. `role` is `student` or `admin`. | Own row; admin all | Own row (cannot change `role`; self-insert forced to `student`); admin all. Clerk webhook via service role. |
-| `site_settings` | Key/value JSON blobs edited from the admin settings page. Keys: `content`, `selectable_options`, `session_settings`. | Anyone, including anonymous visitors | Admin insert/update |
-| `session_requests` | A student's tutoring request: subject, urgency, hard topics, preferred slot. `status`: `open`, `accepted`, `declined`, `scheduled`. | Own rows; admin all | Student inserts own; admin all |
-| `bookings` | Mirror of Calendly scheduled events, linked to a student by invitee email and optionally to a request. `status`: `scheduled`, `canceled`. | Own rows; admin all | Calendly webhook via service role; admin all |
-| `assessments` | Placement questionnaire and test answers with a score. | Own rows; admin all | Student inserts own; admin all |
-| `learner_courses` | Courses an admin assigned to a student, with progress (`registered`, `in-progress`, `passed`). Unique per student and course. | Own rows; admin all | Admin only |
-| `webhook_events` | Idempotency ledger keyed on `(provider, event_id)` for Clerk and Calendly webhooks. | Service role only | Service role only |
+All access goes through the backend; see `docs/ARCHITECTURE.md` for who can do what.
 
-Helper functions:
-
-- `public.clerk_user_id()` returns the `sub` claim of the current JWT, or null.
-- `public.is_admin()` returns true when the caller's profile has `role = 'admin'`. It is `security definer` so the check is not blocked by RLS on `profiles`.
-- `public.set_updated_at()` trigger keeps `updated_at` current on every table that has the column.
+| Table | Purpose |
+|---|---|
+| `profiles` | One row per Clerk user (`id` = Clerk user id). `role` mirrors Clerk `publicMetadata.role`. Written by the Clerk webhook and `GET /me`. |
+| `site_settings` | JSON blobs by key: `content` (courses, examPrepTracks, faq), `selectable_options` (dropdowns). `session_settings` is legacy and unused. |
+| `reviews` | Testimonials. `status` `pending` (student-submitted) or `approved` (public). `student_id` is the author, null for legacy/admin-seeded rows. |
+| `session_requests` | Contact-form requests. `student_id` is null for guests. `status`: `new`, `accepted`, `declined`, `scheduled`, `closed`. |
+| `bookings` | Mirror of Calendly invitees, unique on `calendly_invitee_uri` (a group event has one `calendly_event_uri`, many invitees). Linked to a request via `utm_content`. `status`: `scheduled`, `canceled`. |
+| `assessments` | Placement answers with `score`, `total`, `recommendation`. |
+| `learner_courses` | A student's courses with progress (`registered`, `in-progress`, `passed`). Unique per student and course. |
+| `webhook_events` | Idempotency ledger keyed on `(provider, event_id)` for Clerk and Calendly. |
 
 ## Adding a migration
 
 ```bash
-supabase migration new <short_name>     # creates supabase/migrations/<timestamp>_<short_name>.sql
-supabase db push                        # hosted
+supabase migration new <short_name>     # supabase/migrations/<timestamp>_<short_name>.sql
 supabase db reset                       # local
+supabase db push                        # hosted
 ```
 
-After changing the schema, update the hand-written row types in `frontend/src/platform/db/types.ts`. Once a hosted project exists you can generate them instead:
-
-```bash
-supabase gen types typescript --linked > frontend/src/platform/db/database.generated.ts
-```
+New tables get no `anon`/`authenticated` privileges by default (the
+backend-only migration revokes the default grants). Enable RLS on them anyway.

@@ -1,34 +1,39 @@
 {
-	"name": "backend-project",
-	"version": "1.0.0",
-	"description": "",
-	"main": "server.js",
-	"scripts": {
-		"dev": "nodemon server.js",
-		"start": "node server.js"
-	},
-	"keywords": [],
-	"author": "",
-	"license": "ISC",
-	"type": "commonjs",
-	"dependencies": {
-		"axios": "^1.13.2",
-		"bcrypt": "^6.0.0",
-		"cors": "^2.8.5",
-		"dotenv": "^17.2.3",
-		"express": "^5.2.1",
-		"jsonwebtoken": "^9.0.3",
-		"mongoose": "^9.0.1",
-		"morgan": "^1.10.1",
-		"nodemailer": "^7.0.12",
-		"passport": "^0.7.0",
-		"passport-github2": "^0.1.12",
-		"resend": "^6.9.1",
-		"passport-google-oauth20": "^2.0.0"
-	},
-	"devDependencies": {
-		"nodemon": "^3.1.10",
-		"@types/bcrypt": "^6.0.0",
-		"@types/jsonwebtoken": "^9.0.10"
-	}
+  "name": "tutorpro-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TutorPro API: Express + TypeScript on Supabase, Clerk, Resend, Calendly",
+  "type": "module",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clerk/express": "^2.1.72",
+    "@supabase/supabase-js": "^2.117.2",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "resend": "^6.30.0",
+    "svix": "^2.5.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.4",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.2"
+  }
 }

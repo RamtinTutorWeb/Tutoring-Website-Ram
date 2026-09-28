@@ -1,21 +1,32 @@
-import { FormEvent, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
-import { useAppContext } from "../context/AppContext";
-
-function displayRole(role: "student" | "parent" | "tutor" | "admin"): string {
-  if (role === "admin") return "Admin";
-  if (role === "tutor") return "Tutor";
-  if (role === "parent") return "Parent";
-  return "Student";
-}
+import { useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { errorMessage } from "../api/client";
+import { useMe } from "../api/MeProvider";
+import { useSession } from "../auth/session";
 
 export default function ProfilePage() {
-  const { currentUser, logout, updatePhone } = useAppContext();
+  const { me, loading, error, refetch, update } = useMe();
+  const { signOut, openUserProfile } = useSession();
   const navigate = useNavigate();
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState({ text: "", error: false });
   const [saving, setSaving] = useState(false);
 
-  if (!currentUser) return <Navigate to="/login" replace />;
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setSaving(true);
+    try {
+      await update({
+        fullName: String(fd.get("fullName") ?? "").trim(),
+        phone: String(fd.get("phone") ?? "").trim()
+      });
+      setFeedback({ text: "Profile updated.", error: false });
+    } catch (err) {
+      setFeedback({ text: errorMessage(err, "Could not update your profile."), error: true });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <section data-page="profile" className="page profile-page">
@@ -24,40 +35,42 @@ export default function ProfilePage() {
         <h2>Profile</h2>
         <p>Manage your personal and account information.</p>
       </div>
-      <div className="card profile-page-card">
-        <h3>Personal Information</h3>
-        <div className="profile-lines">
-          <p><strong>Name:</strong> {currentUser.name}</p>
-          <p><strong>Email:</strong> {currentUser.email}</p>
-          <p><strong>Phone:</strong> {currentUser.phone || "Not provided"}</p>
-          <p><strong>Account type:</strong> {displayRole(currentUser.role)}</p>
+      {loading ? <p className="muted">Loading...</p> : null}
+      {error ? (
+        <div className="card" role="alert">
+          <p className="feedback error">Could not load your profile: {error}</p>
+          <button type="button" onClick={() => void refetch()}>Retry</button>
         </div>
-        <form className="profile-phone-form" onSubmit={async (e: FormEvent<HTMLFormElement>) => {
-          e.preventDefault();
-          const phone = String(new FormData(e.currentTarget).get("phone") ?? "");
-          setSaving(true);
-          const result = await updatePhone(phone);
-          setFeedback(result.message);
-          setSaving(false);
-        }}>
-          <label>Phone Number
-            <input name="phone" type="tel" defaultValue={currentUser.phone ?? ""} placeholder="+1 555 123 4567" autoComplete="tel" />
-          </label>
-          <button className="primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Phone Number"}</button>
-          <p className="feedback">{feedback}</p>
-        </form>
-        <div className="profile-security">
-          <h3>Account Security</h3>
-          <p>Update your password or securely leave your account.</p>
+      ) : null}
+      {me ? (
+        <div className="card profile-page-card">
+          <h3>Personal Information</h3>
+          <div className="profile-lines">
+            <p><strong>Name:</strong> {me.fullName || "Not provided"}</p>
+            <p><strong>Email:</strong> {me.email}</p>
+            <p><strong>Phone:</strong> {me.phone || "Not provided"}</p>
+            <p><strong>Account type:</strong> {me.role === "admin" ? "Admin" : "Student"}</p>
+          </div>
+          <form className="profile-phone-form" onSubmit={handleSubmit}>
+            <label>Full Name
+              <input name="fullName" defaultValue={me.fullName ?? ""} autoComplete="name" />
+            </label>
+            <label>Phone Number
+              <input name="phone" type="tel" defaultValue={me.phone ?? ""} placeholder="+1 555 123 4567" autoComplete="tel" />
+            </label>
+            <button className="primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Profile"}</button>
+            <p className={`feedback ${feedback.error ? "error" : ""}`} role="status">{feedback.text}</p>
+          </form>
+          <div className="profile-security">
+            <h3>Account Security</h3>
+            <p>Change your email, password, or sign-in methods, or sign out.</p>
+          </div>
+          <div className="row">
+            <button className="profile-password-link" type="button" onClick={openUserProfile}>Manage Account</button>
+            <button className="danger" type="button" onClick={() => void signOut().then(() => navigate("/"))}>Sign Out</button>
+          </div>
         </div>
-        <div className="row">
-          <Link className="button-link profile-password-link" to="/forgot-password">Change Password</Link>
-          <button className="danger" type="button" onClick={() => {
-            logout();
-            navigate("/");
-          }}>Logout</button>
-        </div>
-      </div>
+      ) : null}
     </section>
   );
 }

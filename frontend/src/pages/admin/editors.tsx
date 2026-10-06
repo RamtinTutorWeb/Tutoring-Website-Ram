@@ -9,31 +9,22 @@ import { uid } from "../../lib/id";
 // Admin editors for GET/PUT /content (each save sends only the keys it changed) and /reviews.
 
 export const optionGroupLabels: Record<SelectableOptionKey, string> = {
-  contactMethods: "Contact Methods",
-  serviceTypes: "Tutoring Service Types",
-  urgencyWindows: "Exam Urgency Windows",
-  urgencyFlags: "Urgency Choices",
-  assessmentSubjects: "Assessment Subjects",
-  courseCategories: "Course Categories"
+  contactMethods: "Contact methods (contact form)",
+  serviceTypes: "Service types (contact form)",
+  urgencyWindows: "Exam timelines (exam prep page + contact form)",
+  urgencyFlags: "Urgency choices",
+  assessmentSubjects: "Subjects (contact form + assessment)",
+  courseCategories: "Course categories"
 };
-
-export const allOptionGroups = Object.keys(optionGroupLabels) as SelectableOptionKey[];
 
 const EXAM_PREP_CATEGORY = "Exam Prep";
 
-/** A card with an <h3>, or a collapsible admin card when `collapsible`. */
-export function Panel({ title, collapsible, children }: { title: string; collapsible?: boolean; children: ReactNode }) {
-  if (collapsible) {
-    return (
-      <details className="card courses-overview admin-management">
-        <summary>{title}</summary>
-        <div className="admin-management-content">{children}</div>
-      </details>
-    );
-  }
+/** A titled admin card. */
+export function Panel({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
     <div className="card">
       <h3>{title}</h3>
+      {description ? <p className="muted">{description}</p> : null}
       {children}
     </div>
   );
@@ -80,7 +71,7 @@ function placeCourse(content: SiteContent, course: Course): Pick<ContentPatch, "
   return { courses, examPrepTracks };
 }
 
-export function CourseCatalogEditor({ collapsible }: { collapsible?: boolean }) {
+export function CourseCatalogEditor() {
   const { content, saving, run, feedbackLine } = useContentSave();
   const categories = content.selectableOptions.courseCategories.filter((category) => category !== "All");
   const allCourses = [...content.courses, ...content.examPrepTracks];
@@ -110,12 +101,12 @@ export function CourseCatalogEditor({ collapsible }: { collapsible?: boolean }) 
   );
 
   return (
-    <Panel title="Manage Courses" collapsible={collapsible}>
+    <Panel title="Courses">
       <form onSubmit={handleAdd}>
         <label>Title<input name="title" required /></label>
         <label>Category{categorySelect()}</label>
-        <label>Topics/Description<textarea name="description" rows={3} required /></label>
-        <button className="primary" type="submit" disabled={saving}>Add Course</button>
+        <label>Topics / description<textarea name="description" rows={3} required /></label>
+        <button className="primary" type="submit" disabled={saving}>Add course</button>
       </form>
       <div className="list">
         {allCourses.length ? allCourses.map((course) => (
@@ -124,7 +115,7 @@ export function CourseCatalogEditor({ collapsible }: { collapsible?: boolean }) 
             <form onSubmit={(e) => handleUpdate(e, course)}>
               <label>Title<input name="title" defaultValue={course.title} required /></label>
               <label>Category{categorySelect(course.category)}</label>
-              <label>Topics/Description<textarea name="description" rows={2} defaultValue={course.description} required /></label>
+              <label>Topics / description<textarea name="description" rows={2} defaultValue={course.description} required /></label>
               <div className="row">
                 <button type="submit" disabled={saving}>Save</button>
                 <button className="danger" type="button" disabled={saving} onClick={() => handleDelete(course.id)}>Delete</button>
@@ -138,7 +129,7 @@ export function CourseCatalogEditor({ collapsible }: { collapsible?: boolean }) 
   );
 }
 
-export function ExamTrackEditor({ collapsible }: { collapsible?: boolean }) {
+export function ExamTrackEditor() {
   const { content, saving, run, feedbackLine } = useContentSave();
   const tracks = content.examPrepTracks;
 
@@ -156,17 +147,17 @@ export function ExamTrackEditor({ collapsible }: { collapsible?: boolean }) {
   }
 
   return (
-    <Panel title="Manage Exam Prep Tracks" collapsible={collapsible}>
+    <Panel title="Exam prep tracks">
       <form onSubmit={handleAdd}>
-        <label>Track Name<input name="title" placeholder="IB Math AA" required /></label>
-        <label>Topics/Description<textarea name="description" rows={3} required /></label>
-        <button className="primary" type="submit" disabled={saving}>Add Track</button>
+        <label>Track name<input name="title" placeholder="IB Math AA" required /></label>
+        <label>Topics / description<textarea name="description" rows={3} required /></label>
+        <button className="primary" type="submit" disabled={saving}>Add track</button>
       </form>
       <div className="list">
         {tracks.length ? tracks.map((track) => (
           <form className="list-item" key={track.id} onSubmit={(e) => handleUpdate(e, track)}>
-            <label>Track Name<input name="title" defaultValue={track.title} required /></label>
-            <label>Topics/Description<textarea name="description" rows={2} defaultValue={track.description} required /></label>
+            <label>Track name<input name="title" defaultValue={track.title} required /></label>
+            <label>Topics / description<textarea name="description" rows={2} defaultValue={track.description} required /></label>
             <div className="row">
               <button type="submit" disabled={saving}>Save</button>
               <button
@@ -192,12 +183,12 @@ function cleanOption(value: string): string {
 
 export function OptionsEditor({
   title,
-  groups,
-  collapsible
+  description,
+  groups
 }: {
   title: string;
+  description?: string;
   groups: SelectableOptionKey[];
-  collapsible?: boolean;
 }) {
   const { content, saving, run, setFeedback, feedbackLine } = useContentSave();
   const [group, setGroup] = useState<SelectableOptionKey>(groups[0]);
@@ -235,9 +226,9 @@ export function OptionsEditor({
   }
 
   return (
-    <Panel title={title} collapsible={collapsible}>
+    <Panel title={title} description={description}>
       {groups.length > 1 ? (
-        <label>Option Group
+        <label>List
           <select
             value={group}
             onChange={(e) => {
@@ -249,14 +240,14 @@ export function OptionsEditor({
           </select>
         </label>
       ) : null}
-      <form onSubmit={handleAdd}>
-        <label>New Option<input name="optionValue" required /></label>
-        <button className="primary" type="submit" disabled={saving}>Add Option</button>
+      <form onSubmit={handleAdd} className="row" style={{ marginTop: "0.85rem" }}>
+        <input name="optionValue" aria-label="New value" placeholder="New value" required style={{ flex: "1 1 200px", marginTop: 0 }} />
+        <button className="primary" type="submit" disabled={saving}>Add</button>
       </form>
       <div className="list">
         {options.map((option, index) => (
-          <form className="list-item" key={`${group}-${option}-${index}`} onSubmit={(e) => handleUpdate(e, index)}>
-            <label>Option Value<input name="optionValue" defaultValue={option} required /></label>
+          <form className="list-item row" key={`${group}-${option}-${index}`} onSubmit={(e) => handleUpdate(e, index)}>
+            <input name="optionValue" aria-label="Value" defaultValue={option} required style={{ flex: "1 1 200px", marginTop: 0 }} />
             <div className="row">
               <button type="submit" disabled={saving}>Save</button>
               <button
@@ -277,7 +268,7 @@ export function OptionsEditor({
 }
 
 /** Reviews live in their own table: POST /reviews (admin -> approved), PATCH/DELETE /reviews/:id. */
-export function ReviewsEditor({ collapsible }: { collapsible?: boolean }) {
+export function ReviewsEditor() {
   const { content, update } = useContent();
   const createReview = useCreateReview();
   const reviewAdmin = useReviewAdmin();
@@ -343,12 +334,12 @@ export function ReviewsEditor({ collapsible }: { collapsible?: boolean }) {
   const pendingCount = reviews.filter((review) => review.status === "pending").length;
 
   return (
-    <Panel title={pendingCount ? `Manage Reviews (${pendingCount} pending)` : "Manage Reviews"} collapsible={collapsible}>
+    <Panel title={pendingCount ? `Reviews (${pendingCount} waiting for approval)` : "Reviews"}>
       <form onSubmit={handleAdd}>
-        <label>Name/Initials<input name="name" required /></label>
+        <label>Name or initials<input name="name" required /></label>
         <label>Rating (1-5)<input name="rating" type="number" min={1} max={5} required /></label>
         <label>Review<textarea name="text" rows={2} required /></label>
-        <button className="primary" type="submit" disabled={busy}>Add Review</button>
+        <button className="primary" type="submit" disabled={busy}>Add review</button>
       </form>
       <div className="list">
         {reviews.map((review) => (
@@ -359,7 +350,7 @@ export function ReviewsEditor({ collapsible }: { collapsible?: boolean }) {
             </summary>
             <p>{review.text}</p>
             <form onSubmit={(e) => handleEdit(e, review.id)}>
-              <label>Name/Initials<input name="name" defaultValue={review.name} required /></label>
+              <label>Name or initials<input name="name" defaultValue={review.name} required /></label>
               <label>Rating (1-5)<input name="rating" type="number" min={1} max={5} defaultValue={review.rating} required /></label>
               <label>Review<textarea name="text" rows={2} defaultValue={review.text} required /></label>
               <div className="row">
@@ -378,7 +369,7 @@ export function ReviewsEditor({ collapsible }: { collapsible?: boolean }) {
   );
 }
 
-export function FaqEditor({ collapsible }: { collapsible?: boolean }) {
+export function FaqEditor() {
   const { content, saving, run, feedbackLine } = useContentSave();
   const faq = content.faq;
 
@@ -402,11 +393,11 @@ export function FaqEditor({ collapsible }: { collapsible?: boolean }) {
   }
 
   return (
-    <Panel title="Manage FAQ" collapsible={collapsible}>
+    <Panel title="FAQ (home page)">
       <form onSubmit={handleAdd}>
         <label>Question<input name="question" required /></label>
         <label>Answer<textarea name="answer" rows={2} required /></label>
-        <button className="primary" type="submit" disabled={saving}>Add FAQ</button>
+        <button className="primary" type="submit" disabled={saving}>Add question</button>
       </form>
       <div className="list">
         {faq.map((item) => (

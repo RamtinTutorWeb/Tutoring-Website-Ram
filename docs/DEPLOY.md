@@ -16,6 +16,8 @@ supabase projects api-keys --project-ref <ref>
 - `SUPABASE_URL` = `https://<ref>.supabase.co`
 - `SUPABASE_SERVICE_ROLE_KEY` = the `service_role` key (Railway only)
 
+Free-tier projects pause after 7 days without DB activity (API then returns 500 on every DB route). `.github/workflows/keepalive.yml` pings `GET /content` daily to prevent that.
+
 No anon key, no Supabase Auth, no third-party auth setup: the browser never reaches Supabase.
 
 ## 2. Clerk (auth)
@@ -52,7 +54,7 @@ Without a verified domain Resend only delivers to the account owner's address.
 
 ## 7. Calendly (booking)
 
-- Event type → Copy link → `VITE_CALENDLY_URL` (Vercel; redeploy).
+- Event type → Copy link → paste it in the site's **Admin → Contact & booking** (no redeploy). `VITE_CALENDLY_URL` is only a fallback.
 - Integrations → API & webhooks → Personal access token → Railway `CALENDLY_PERSONAL_ACCESS_TOKEN`. Webhooks need a paid (Standard+) plan.
 - Register the webhook (idempotent, 409 = already exists):
   ```bash

@@ -1,60 +1,35 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { errorMessage } from "../api/client";
 import { useContent } from "../api/ContentProvider";
-import { useCreateRequest, useRequests } from "../api/hooks";
+import { ApiError, errorMessage } from "../api/client";
+import { useCreateRequest } from "../api/hooks";
 import { useMe } from "../api/MeProvider";
 import type { NewRequest, SessionRequest } from "../api/types";
 import { useSession } from "../auth/session";
-import StatCard from "../components/StatCard";
-import RequestsCard from "./dashboard/RequestsCard";
-import { OptionsEditor } from "./settings/editors";
+import AdminEditLink from "../components/AdminEditLink";
+import Prose from "../components/Prose";
 
 export default function ContactPage() {
-  const { isAdmin } = useMe();
-  return isAdmin ? <ContactOperations /> : <ContactRequestPage />;
-}
-
-function ContactOperations() {
-  const requests = useRequests();
-  const all = requests.data ?? [];
-
-  return (
-    <section data-page="contact" className="page">
-      <h2>Contact Operations</h2>
-      <p className="muted">Review tutoring requests and manage contact-form choices.</p>
-
-      <div className="grid-2">
-        <StatCard label="New" value={all.filter((request) => request.status === "new").length} />
-        <StatCard label="Awaiting Booking" value={all.filter((request) => request.status === "accepted").length} />
-      </div>
-
-      <div className="grid-2">
-        <RequestsCard
-          requests={all}
-          loading={requests.loading}
-          error={requests.error}
-          onRetry={() => void requests.refetch()}
-          updateStatus={requests.updateStatus}
-          defaultFilter="new"
-          collapsible={false}
-        />
-        <OptionsEditor title="Manage Contact Form Choices" groups={["contactMethods", "serviceTypes", "urgencyWindows"]} />
-      </div>
-    </section>
-  );
-}
-
-function ContactRequestPage() {
+  const { content } = useContent();
+  const contact = content.pages.contact;
   const [submitted, setSubmitted] = useState<SessionRequest | null>(null);
 
   return (
     <section data-page="contact" className="page">
-      <h2>Contact</h2>
-      <p className="muted">
-        Tell us what you need help with. Once your request is accepted you will get a link to book a session.
-      </p>
-      {submitted ? <RequestSent request={submitted} onReset={() => setSubmitted(null)} /> : <ContactRequestForm onSubmitted={setSubmitted} />}
+      <div className="page-head">
+        <h2>Contact</h2>
+        <Prose text={contact.intro} className="lead" />
+      </div>
+      <div className="contact-layout">
+        {submitted ? <RequestSent request={submitted} onReset={() => setSubmitted(null)} /> : <ContactRequestForm onSubmitted={setSubmitted} />}
+        <aside className="card contact-side">
+          <h3>{contact.email || contact.phone ? "Other ways to reach me" : "Booking"}</h3>
+          {contact.email ? <p><strong>Email:</strong> <a href={`mailto:${contact.email}`}>{contact.email}</a></p> : null}
+          {contact.phone ? <p><strong>Phone:</strong> <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>{contact.phone}</a></p> : null}
+          <p className="muted">Already accepted? <Link to="/book">Book a time</Link>.</p>
+        </aside>
+      </div>
+      <AdminEditLink tab="contact" />
     </section>
   );
 }
@@ -119,7 +94,12 @@ function ContactRequestForm({ onSubmitted }: { onSubmitted: (request: SessionReq
     try {
       onSubmitted(await createRequest(request));
     } catch (err) {
-      setFeedback(errorMessage(err, "Could not send your request. Please try again."));
+      // Server-side failures are not actionable for the visitor: point them to a direct channel instead.
+      const serverDown = err instanceof ApiError && (err.status === 0 || err.status >= 500);
+      const direct = content.pages.contact.email ? ` You can also email ${content.pages.contact.email}.` : "";
+      setFeedback(serverDown
+        ? `We couldn't send your request right now. Please try again in a few minutes.${direct}`
+        : errorMessage(err, "Could not send your request. Please try again."));
     } finally {
       setSubmitting(false);
     }
@@ -129,17 +109,17 @@ function ContactRequestForm({ onSubmitted }: { onSubmitted: (request: SessionReq
   const formKey = isSignedIn ? `signed-in-${defaultEmail}` : "signed-out";
 
   return (
-    <form id="contact-form" className="card" onSubmit={handleSubmit} key={formKey}>
+    <form id="contact-form" className="card form-grid" onSubmit={handleSubmit} key={formKey}>
       <label>Name<input name="name" defaultValue={defaultName} autoComplete="name" required /></label>
       <label>Email<input name="email" type="email" defaultValue={defaultEmail} autoComplete="email" required /></label>
       <label>Phone<input name="phone" type="tel" defaultValue={me?.phone ?? ""} autoComplete="tel" /></label>
-      <label>Best Way to Contact
+      <label>Best way to contact
         <select name="contactMethod" defaultValue="">
           <option value="">Select...</option>
           {options.contactMethods.map((option) => <option key={option}>{option}</option>)}
         </select>
       </label>
-      <label>Service Type
+      <label>Service type
         <select name="serviceType" defaultValue="">
           <option value="">Select...</option>
           {options.serviceTypes.map((option) => <option key={option}>{option}</option>)}
@@ -151,20 +131,22 @@ function ContactRequestForm({ onSubmitted }: { onSubmitted: (request: SessionReq
           {options.assessmentSubjects.map((option) => <option key={option}>{option}</option>)}
         </select>
       </label>
-      <label>Upcoming Exam
+      <label>Upcoming exam
         <select name="urgencyWindow" defaultValue="">
           <option value="">No exam / not sure</option>
           {options.urgencyWindows.map((option) => <option key={option}>{option}</option>)}
         </select>
       </label>
-      <label>Earliest Start Date<input name="earliestDate" type="date" min={today} /></label>
-      <label>Topics You Find Hard<input name="hardTopics" placeholder="e.g. integration by parts, projectile motion" /></label>
-      <label>Message<textarea name="message" required rows={4} /></label>
-      <label className="check-row"><input name="isUrgent" type="checkbox" /> This is urgent</label>
-      <label className="check-row"><input name="consultation" type="checkbox" /> I'd like a free consultation first</label>
-      <label className="check-row"><input name="notRobot" type="checkbox" required /> I'm not a robot</label>
-      <button className="primary" type="submit" disabled={submitting}>{submitting ? "Sending..." : "Submit Request"}</button>
-      <p className={`feedback ${feedback ? "error" : ""}`} role="alert">{feedback}</p>
+      <label>Earliest start date<input name="earliestDate" type="date" min={today} /></label>
+      <label className="full">Topics you find hard<input name="hardTopics" placeholder="e.g. integration by parts, projectile motion" /></label>
+      <label className="full">Message<textarea name="message" required rows={4} /></label>
+      <label className="check-row full"><input name="isUrgent" type="checkbox" /> This is urgent</label>
+      <label className="check-row full"><input name="consultation" type="checkbox" /> I'd like a free consultation first</label>
+      <label className="check-row full"><input name="notRobot" type="checkbox" required /> I'm not a robot</label>
+      <div className="full">
+        <button className="primary" type="submit" disabled={submitting}>{submitting ? "Sending..." : "Send request"}</button>
+        <p className={`feedback ${feedback ? "error" : ""}`} role="alert">{feedback}</p>
+      </div>
     </form>
   );
 }

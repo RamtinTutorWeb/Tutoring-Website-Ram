@@ -1,12 +1,15 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
-import { defaultSelectableOptions } from "../data/defaults";
+import { defaultPages, defaultSelectableOptions } from "../data/defaults";
 import { useSession } from "../auth/session";
 import { useApi, useResource } from "./hooks";
 import { useMe } from "./MeProvider";
-import type { SiteContent } from "./types";
+import type { SiteContent, SitePages } from "./types";
 
-/** `PUT /content` payload. Reviews have their own routes (`/reviews`); the backend rejects them here. */
-export type ContentPatch = Partial<Omit<SiteContent, "reviews">>;
+/**
+ * `PUT /content` payload. Reviews have their own routes (`/reviews`); the backend rejects them here.
+ * Each page sent in `pages` replaces that page; pages left out are kept.
+ */
+export type ContentPatch = Partial<Omit<SiteContent, "reviews" | "pages">> & { pages?: Partial<SitePages> };
 
 interface ContentValue {
   /** Server content, or empty lists (with default form options) until `GET /content` resolves. */
@@ -26,7 +29,8 @@ const emptyContent: SiteContent = {
   examPrepTracks: [],
   reviews: [],
   faq: [],
-  selectableOptions: defaultSelectableOptions
+  selectableOptions: defaultSelectableOptions,
+  pages: defaultPages
 };
 
 const ContentContext = createContext<ContentValue | null>(null);
@@ -62,7 +66,12 @@ export function ContentProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ContentValue>(() => {
     const data = resource.data;
     const content: SiteContent = data
-      ? { ...emptyContent, ...data, selectableOptions: { ...defaultSelectableOptions, ...data.selectableOptions } }
+      ? {
+          ...emptyContent,
+          ...data,
+          selectableOptions: { ...defaultSelectableOptions, ...data.selectableOptions },
+          pages: { ...defaultPages, ...data.pages }
+        }
       : emptyContent;
     return {
       content,

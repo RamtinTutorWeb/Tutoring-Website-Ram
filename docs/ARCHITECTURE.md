@@ -18,6 +18,7 @@ Rules
 - The browser never talks to Supabase. `@supabase/supabase-js` lives only in `backend/`.
 - Auth = Clerk. Role source of truth = Clerk `publicMetadata.role` (`admin` | default `student`),
   mirrored to `profiles.role` by the Clerk webhook and by `GET /me` (upsert on first call).
+- Admin UI lives at `/admin/:tab` (RequireAdmin). Public pages are read-only; admins get an "Edit this page" link.
 - Custom slot calendar is gone. Booking = Calendly. Flow: visitor/student submits a request on
   /contact -> tutor emailed -> admin accepts -> student books on /book?request=<id> (utm_content).
 - No MongoDB, no passport, no JWT of our own, no localStorage DB.
@@ -52,6 +53,8 @@ Missing optional integrations (Resend, Calendly) must degrade gracefully: log + 
 ## HTTP API (backend)
 
 `PUT /content` replaces each provided key wholesale and preserves client-generated ids.
+`pages` is per page: each page present in `pages` replaces that page, others are kept. Missing stored fields fall back to
+`DEFAULT_PAGES` (`backend/src/lib/content.ts`). URLs must be `https://` (`booking.calendlyUrl` on calendly.com).
 `POST` creates return 201 with the JSON body; `DELETE` returns 204. CORS allows `Authorization`, `Content-Type`.
 Request ids in `/book?request=` are opaque strings.
 
@@ -103,9 +106,19 @@ interface Course { id: string; title: string; category: string; description: str
 interface Review { id: string; name: string; rating: number; text: string; status?: "pending" | "approved" }
 interface FaqItem { id: string; question: string; answer: string }
 type SelectableOptionKey = "contactMethods" | "serviceTypes" | "urgencyWindows" | "urgencyFlags" | "assessmentSubjects" | "courseCategories";
+interface TextSection { id: string; heading: string; body: string }
+interface SitePages {
+  home: { kicker: string; title: string; subtitle: string; teachingTitle: string; teachingText: string; videoUrl: string };
+  about: { title: string; intro: string; photoUrl: string; sections: TextSection[] };
+  examPrep: { intro: string; timelinesTitle: string; timelinesText: string };
+  policy: { intro: string; sections: TextSection[] };
+  contact: { intro: string; email: string; phone: string };
+  booking: { calendlyUrl: string; intro: string };   // calendlyUrl overrides VITE_CALENDLY_URL
+}
 interface SiteContent {
   courses: Course[]; examPrepTracks: Course[]; reviews: Review[]; faq: FaqItem[];
   selectableOptions: Record<SelectableOptionKey, string[]>;
+  pages: SitePages;
 }
 type RequestStatus = "new" | "accepted" | "declined" | "scheduled" | "closed";
 interface NewRequest {

@@ -1,19 +1,26 @@
+import { useContent } from "../api/ContentProvider";
+import AdminEditLink from "../components/AdminEditLink";
+import Prose from "../components/Prose";
+
 export default function PolicyPage() {
+  const { content } = useContent();
+  const policy = content.pages.policy;
+
   return (
     <section data-page="policy" className="page">
-      <h2>Policy</h2>
-      <div className="grid-2">
-        <div className="card">
-          <h3>Session Policy</h3>
-          <p>Send a tutoring request first. Once it is accepted you will receive a link to book a time through our online scheduler.</p>
-          <p>Cancellations and changes should be made as early as possible using the links in your booking confirmation email.</p>
-        </div>
-        <div className="card">
-          <h3>Account Policy</h3>
-          <p>Users are responsible for keeping login information private. Password resets and sign-in methods are managed from your account menu.</p>
-          <p>Course progress and request details are used only to support tutoring operations.</p>
-        </div>
+      <div className="page-head">
+        <h2>Policies</h2>
+        <Prose text={policy.intro} className="lead" />
       </div>
+      <div className="section-stack">
+        {policy.sections.map((section) => (
+          <div className="card" key={section.id}>
+            <h3>{section.heading}</h3>
+            <Prose text={section.body} />
+          </div>
+        ))}
+      </div>
+      <AdminEditLink tab="policy" />
     </section>
   );
 }

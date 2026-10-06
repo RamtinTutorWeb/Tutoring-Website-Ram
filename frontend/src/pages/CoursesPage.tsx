@@ -5,81 +5,72 @@ import { useContent } from "../api/ContentProvider";
 import { useLearnerCourses } from "../api/hooks";
 import { useMe } from "../api/MeProvider";
 import { useSession } from "../auth/session";
+import AdminEditLink from "../components/AdminEditLink";
 import LoadState from "../components/LoadState";
-import { CourseCatalogEditor } from "./settings/editors";
+import Prose from "../components/Prose";
 
 export default function CoursesPage() {
   const { content, loading, error, refetch } = useContent();
   const { isSignedIn } = useSession();
   const { isAdmin } = useMe();
+  const learnerCourses = useLearnerCourses();
+  const allCourses = useMemo(() => [...content.courses, ...content.examPrepTracks], [content.courses, content.examPrepTracks]);
+  // Only show categories that have courses in them.
   const categories = useMemo(
-    () => content.selectableOptions.courseCategories.filter((category) => category !== "All"),
-    [content.selectableOptions.courseCategories]
+    () => content.selectableOptions.courseCategories.filter((category) => allCourses.some((course) => course.category === category)),
+    [content.selectableOptions.courseCategories, allCourses]
   );
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [selectedCourseId, setSelectedCourseId] = useState("");
-  const activeCategory = categoryFilter || categories[0] || "";
-  const allCourses = useMemo(() => [...content.courses, ...content.examPrepTracks], [content.courses, content.examPrepTracks]);
-  const filteredCourses = allCourses.filter((course) => course.category === activeCategory);
-  const selectedCourse = filteredCourses.find((course) => course.id === selectedCourseId) ?? null;
+  const activeCategory = categories.includes(categoryFilter) ? categoryFilter : "";
+  const visible = activeCategory ? allCourses.filter((course) => course.category === activeCategory) : allCourses;
 
   return (
     <section data-page="courses" className="page">
-      <h2>Courses</h2>
-      <p className="muted">
-        {isAdmin ? "Browse courses and manage the catalog." : "Filter by category and select a course to view topics covered."}
-      </p>
+      <div className="page-head">
+        <h2>Courses</h2>
+        <p className="lead">Pick a course to see the topics it covers.</p>
+      </div>
       <LoadState loading={loading} error={error} onRetry={() => void refetch()} />
 
-      <div className="filters">
-        <label>
-          Category
-          <select value={activeCategory} onChange={(e) => {
-            setCategoryFilter(e.target.value);
-            setSelectedCourseId("");
-          }}>
-            {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
-        </label>
-        <label>
-          Course
-          <select value={selectedCourseId} onChange={(e) => setSelectedCourseId(e.target.value)} disabled={!activeCategory}>
-            <option value="">{activeCategory ? "Select course" : "Select category first"}</option>
-            {filteredCourses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
-          </select>
-        </label>
-      </div>
-
-      <div className="card" id="course-details">
-        {selectedCourse ? (
-          <>
-            <h3>{selectedCourse.title}</h3>
-            <p><strong>Category:</strong> {selectedCourse.category}</p>
-            <p>{selectedCourse.description}</p>
-            {!isAdmin ? (
-              isSignedIn ? <RegisterButton courseId={selectedCourse.id} /> : (
-                <p className="muted"><Link to="/sign-in">Sign in</Link> to register for this course.</p>
-              )
-            ) : null}
-          </>
-        ) : filteredCourses.length ? (
-          <p className="muted">Select a course to display details.</p>
-        ) : !loading ? (
-          <p className="muted">No courses found for this category.</p>
-        ) : null}
-      </div>
-
-      {isAdmin ? (
-        <div className="dashboard-stack" id="courses-admin">
-          <CourseCatalogEditor />
+      {categories.length > 1 ? (
+        <div className="chip-row" role="group" aria-label="Filter by category">
+          <button type="button" className={`chip ${activeCategory ? "" : "active"}`} onClick={() => setCategoryFilter("")}>All</button>
+          {categories.map((category) => (
+            <button
+              type="button"
+              key={category}
+              className={`chip ${activeCategory === category ? "active" : ""}`}
+              onClick={() => setCategoryFilter(category)}
+            >
+              {category}
+            </button>
+          ))}
         </div>
       ) : null}
+
+      <div className="card-grid" id="course-details">
+        {visible.map((course) => (
+          <div className="card course-card" key={course.id}>
+            <span className="tag">{course.category}</span>
+            <h3 style={{ marginTop: "0.6rem" }}>{course.title}</h3>
+            <Prose text={course.description} />
+            {!isAdmin ? (
+              isSignedIn ? <RegisterButton courseId={course.id} learnerCourses={learnerCourses} /> : null
+            ) : null}
+          </div>
+        ))}
+      </div>
+      {!visible.length && !loading ? <p className="muted">No courses yet.</p> : null}
+      {!isSignedIn && visible.length ? (
+        <p className="muted"><Link to="/sign-in">Sign in</Link> to register for a course and track your progress.</p>
+      ) : null}
+
+      <AdminEditLink tab="courses" />
     </section>
   );
 }
 
-function RegisterButton({ courseId }: { courseId: string }) {
-  const learnerCourses = useLearnerCourses();
+function RegisterButton({ courseId, learnerCourses }: { courseId: string; learnerCourses: ReturnType<typeof useLearnerCourses> }) {
   const [feedback, setFeedback] = useState({ text: "", error: false });
   const [busy, setBusy] = useState(false);
   const alreadyRegistered = (learnerCourses.data ?? []).some((record) => record.courseId === courseId);
@@ -98,15 +89,15 @@ function RegisterButton({ courseId }: { courseId: string }) {
 
   if (learnerCourses.loading) return null;
   if (alreadyRegistered && !feedback.text) {
-    return <p className="muted">You are registered for this course. <Link to="/dashboard">View progress</Link></p>;
+    return <p className="muted">Registered · <Link to="/dashboard">View progress</Link></p>;
   }
 
   return (
     <>
       {!alreadyRegistered ? (
-        <button className="primary" type="button" disabled={busy} onClick={() => void register()}>Register For This Course</button>
+        <button className="small" type="button" disabled={busy} onClick={() => void register()}>Register</button>
       ) : null}
-      <p className={`feedback ${feedback.error ? "error" : ""}`} role="status">{feedback.text}</p>
+      {feedback.text ? <p className={`feedback ${feedback.error ? "error" : ""}`} role="status">{feedback.text}</p> : null}
     </>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useContent } from "../api/ContentProvider";
 import { useMe } from "../api/MeProvider";
 import { useSession } from "../auth/session";
 import CalendlyEmbed from "../components/CalendlyEmbed";
@@ -13,6 +14,7 @@ const REQUEST_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 export default function BookPage() {
   const { isSignedIn, fullName, email } = useSession();
   const { me } = useMe();
+  const { content } = useContent();
   const [searchParams] = useSearchParams();
   const [scheduled, setScheduled] = useState(false);
 
@@ -29,7 +31,7 @@ export default function BookPage() {
       <p className="muted">
         {requestId
           ? "Your request was accepted. Pick a time that works for you; Calendly will email your confirmation."
-          : <>Pick a time that works for you. New students should <Link to="/contact">send a request</Link> first.</>}
+          : <>{content.pages.booking.intro} New students should <Link to="/contact">send a request</Link> first.</>}
       </p>
       {scheduled ? (
         <div className="card" role="status">

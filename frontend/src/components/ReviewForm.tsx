@@ -42,7 +42,7 @@ export default function ReviewForm() {
 
   return (
     <details className="card courses-overview review-overview">
-      <summary>Leave A Review</summary>
+      <summary>Leave a review</summary>
       {isSignedIn ? (
         <form className="review-overview-content" onSubmit={handleSubmit}>
           <label>Display Name
@@ -58,7 +58,7 @@ export default function ReviewForm() {
             </select>
           </label>
           <label>Review<textarea name="text" rows={3} required /></label>
-          <button className="primary" type="submit" disabled={submitting}>{submitting ? "Submitting..." : "Submit For Approval"}</button>
+          <button className="primary" type="submit" disabled={submitting}>{submitting ? "Submitting..." : "Submit for approval"}</button>
           <p className={`feedback ${feedback.error ? "error" : ""}`} role="status">{feedback.text}</p>
         </form>
       ) : (

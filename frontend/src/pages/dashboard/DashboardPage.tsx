@@ -1,5 +1,5 @@
+import { Navigate } from "react-router-dom";
 import { useMe } from "../../api/MeProvider";
-import AdminDashboard from "./AdminDashboard";
 import DashboardHeader from "./DashboardHeader";
 import StudentDashboard from "./StudentDashboard";
 
@@ -18,7 +18,7 @@ export default function DashboardPage() {
       {me ? (
         <>
           <DashboardHeader me={me} />
-          {isAdmin ? <AdminDashboard /> : <StudentDashboard />}
+          {isAdmin ? <Navigate to="/admin" replace /> : <StudentDashboard />}
         </>
       ) : null}
     </section>

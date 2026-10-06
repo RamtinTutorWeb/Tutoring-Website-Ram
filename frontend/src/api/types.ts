@@ -42,12 +42,41 @@ export type SelectableOptionKey =
 
 export type SelectableOptions = Record<SelectableOptionKey, string[]>;
 
+/** A heading + paragraph block (About and Policy pages). */
+export interface TextSection {
+  id: string;
+  heading: string;
+  body: string;
+}
+
+/** Admin-editable page copy and site settings. */
+export interface SitePages {
+  home: {
+    kicker: string;
+    title: string;
+    subtitle: string;
+    teachingTitle: string;
+    teachingText: string;
+    /** YouTube/Vimeo link or a direct .mp4 URL; empty hides the video. */
+    videoUrl: string;
+  };
+  about: { title: string; intro: string; photoUrl: string; sections: TextSection[] };
+  examPrep: { intro: string; timelinesTitle: string; timelinesText: string };
+  policy: { intro: string; sections: TextSection[] };
+  contact: { intro: string; email: string; phone: string };
+  /** Calendly event link used by /book; empty falls back to VITE_CALENDLY_URL. */
+  booking: { calendlyUrl: string; intro: string };
+}
+
+export type PageKey = keyof SitePages;
+
 export interface SiteContent {
   courses: Course[];
   examPrepTracks: Course[];
   reviews: Review[];
   faq: FaqItem[];
   selectableOptions: SelectableOptions;
+  pages: SitePages;
 }
 
 export type RequestStatus = "new" | "accepted" | "declined" | "scheduled" | "closed";

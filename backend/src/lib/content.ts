@@ -1,4 +1,4 @@
-import { SELECTABLE_OPTION_KEYS, type Course, type SelectableOptions } from '../types.js';
+import { SELECTABLE_OPTION_KEYS, type About, type AboutStat, type Course, type SelectableOptions } from '../types.js';
 
 // Ported from the old settingsRouter: defaults and normalization rules are unchanged.
 
@@ -42,5 +42,57 @@ export function normalizeCatalog(
   return {
     courses: items.filter((c) => c.category !== EXAM_PREP_CATEGORY),
     examPrepTracks: items.filter((c) => c.category === EXAM_PREP_CATEGORY),
+  };
+}
+
+/** Shown until the tutor fills in Settings > Tutor Profile. */
+export const DEFAULT_ABOUT: About = {
+  tutorName: 'Ramtin',
+  headline: 'Math & physics, finally making sense.',
+  tagline:
+    'One-to-one tutoring for University, IB, AP, SAT and A-Level students. Concept-first lessons, targeted practice and exam strategy that sticks.',
+  bio: 'I tutor mathematics and physics from high school through university level. Every plan starts with a short assessment, so sessions go straight to the gaps that cost marks. Students leave each lesson with worked notes, practice sets and a clear next step.',
+  email: '',
+  phone: '',
+  location: 'Online & in person',
+  photoUrl: '',
+  videoUrl: '',
+  // No default numbers: the site must not advertise figures the tutor hasn't entered.
+  stats: [],
+  highlights: [
+    'Free consultation before you commit',
+    'Personal study plan after the first session',
+    'Notes and practice sets shared after every lesson',
+  ],
+};
+
+function text(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value.trim() : fallback;
+}
+
+/** Fills missing fields from DEFAULT_ABOUT; drops malformed stats and blank highlights. */
+export function normalizeAbout(raw: unknown): About {
+  const about = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof About, unknown>>;
+  const stats = Array.isArray(about.stats)
+    ? (about.stats as Partial<AboutStat>[])
+        .filter((s) => s && typeof s.id === 'string' && typeof s.value === 'string' && typeof s.label === 'string')
+        .map((s) => ({ id: s.id!, value: s.value!.trim(), label: s.label!.trim() }))
+        .filter((s) => s.value || s.label)
+    : DEFAULT_ABOUT.stats;
+  const highlights = Array.isArray(about.highlights)
+    ? about.highlights.map((h) => String(h).trim()).filter(Boolean)
+    : DEFAULT_ABOUT.highlights;
+  return {
+    tutorName: text(about.tutorName, DEFAULT_ABOUT.tutorName),
+    headline: text(about.headline, DEFAULT_ABOUT.headline),
+    tagline: text(about.tagline, DEFAULT_ABOUT.tagline),
+    bio: text(about.bio, DEFAULT_ABOUT.bio),
+    email: text(about.email, DEFAULT_ABOUT.email),
+    phone: text(about.phone, DEFAULT_ABOUT.phone),
+    location: text(about.location, DEFAULT_ABOUT.location),
+    photoUrl: text(about.photoUrl, DEFAULT_ABOUT.photoUrl),
+    videoUrl: text(about.videoUrl, DEFAULT_ABOUT.videoUrl),
+    stats,
+    highlights,
   };
 }

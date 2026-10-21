@@ -47,7 +47,31 @@ export const SELECTABLE_OPTION_KEYS = [
 export type SelectableOptionKey = (typeof SELECTABLE_OPTION_KEYS)[number];
 export type SelectableOptions = Record<SelectableOptionKey, string[]>;
 
+export interface AboutStat {
+  id: string;
+  value: string;
+  label: string;
+}
+
+/** The tutor's public profile: hero copy, bio, contact details and headline numbers. */
+export interface About {
+  tutorName: string;
+  headline: string;
+  tagline: string;
+  bio: string;
+  email: string;
+  phone: string;
+  location: string;
+  photoUrl: string;
+  /** YouTube/Vimeo link or a direct video file URL; empty hides the video. */
+  videoUrl: string;
+  stats: AboutStat[];
+  /** Credentials and selling points, one line each. */
+  highlights: string[];
+}
+
 export interface SiteContent {
+  about: About;
   courses: Course[];
   examPrepTracks: Course[];
   reviews: Review[];
@@ -97,6 +121,9 @@ export interface Booking {
   endAt: string | null;
   status: BookingStatus;
   cancelReason: string | null;
+  /** Calendly invitee links; null for bookings synced before they were stored. */
+  cancelUrl: string | null;
+  rescheduleUrl: string | null;
 }
 
 export const COURSE_STATUSES = ['registered', 'in-progress', 'passed'] as const;
@@ -118,5 +145,30 @@ export interface Assessment {
   score: number | null;
   total: number | null;
   recommendation: string | null;
+  createdAt: string;
+}
+
+export const RESOURCE_KINDS = ['file', 'link', 'video'] as const;
+export type ResourceKind = (typeof RESOURCE_KINDS)[number];
+
+export const RESOURCE_VISIBILITIES = ['public', 'students', 'private'] as const;
+export type ResourceVisibility = (typeof RESOURCE_VISIBILITIES)[number];
+
+export interface Resource {
+  id: string;
+  title: string;
+  description: string;
+  kind: ResourceKind;
+  /** Link/video target; null for files (use GET /resources/:id/download). */
+  url: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  subject: string;
+  courseId: string | null;
+  visibility: ResourceVisibility;
+  /** Admin only: who a `private` resource is shared with. Empty for other viewers. */
+  studentIds: string[];
+  featured: boolean;
   createdAt: string;
 }

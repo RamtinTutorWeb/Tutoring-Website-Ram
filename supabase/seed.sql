@@ -165,3 +165,27 @@ values (
   'Calculus I'
 )
 on conflict (id) do nothing;
+
+-- -----------------------------------------------------------------------------
+-- Resources: public samples (one featured), a students-only link and a
+-- private one shared with the dev student. Files need a storage object, so
+-- upload those through the app.
+-- -----------------------------------------------------------------------------
+insert into public.resources (id, title, description, kind, url, subject, visibility, student_ids, featured)
+values
+  ('00000000-0000-4000-8000-000000000001', 'Calculus formula sheet',
+   'Derivatives, integrals and series on one page. Print it before your next exam.',
+   'link', 'https://tutorial.math.lamar.edu/pdf/Calculus_Cheat_Sheet_All.pdf', 'Math', 'public', '{}', true),
+  ('00000000-0000-4000-8000-000000000002', 'Projectile motion explained',
+   'Worked example: splitting velocity into components and finding range and max height.',
+   'video', 'https://www.youtube.com/watch?v=aY8z2qO44WA', 'Physics', 'public', '{}', true),
+  ('00000000-0000-4000-8000-000000000003', 'Interactive graphing calculator',
+   'Plot functions and explore transformations.',
+   'link', 'https://www.desmos.com/calculator', 'Math', 'public', '{}', false),
+  ('00000000-0000-4000-8000-000000000004', 'Mechanics practice set',
+   'Twenty mixed problems with answers, for students only.',
+   'link', 'https://openstax.org/books/university-physics-volume-1/pages/4-problems', 'Physics', 'students', '{}', false),
+  ('00000000-0000-4000-8000-000000000005', 'Your integration plan',
+   'Personal practice plan after our last session.',
+   'link', 'https://openstax.org/books/calculus-volume-2/pages/3-1-integration-by-parts', 'Math', 'private', '{user_dev_student}', false)
+on conflict (id) do nothing;

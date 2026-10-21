@@ -189,6 +189,21 @@ describe('POST /webhooks/calendly', () => {
     expect(state.requests[0]!.status).toBe('scheduled');
   });
 
+  it('stores Calendly cancel/reschedule links, dropping non-Calendly URLs', async () => {
+    const requestId = await acceptedRequest();
+    const d = calendlyDelivery(
+      invitee('invitee.created', requestId, undefined, {
+        cancel_url: 'https://calendly.com/cancellations/INV1',
+        reschedule_url: 'javascript:alert(1)',
+      }),
+    );
+    await request(app).post('/webhooks/calendly').set(d.headers).send(d.body).expect(200);
+    expect([...state.bookings.values()][0]).toMatchObject({
+      cancelUrl: 'https://calendly.com/cancellations/INV1',
+      rescheduleUrl: null,
+    });
+  });
+
   it('is idempotent: a redelivery does not write twice', async () => {
     const requestId = await acceptedRequest();
     const d = calendlyDelivery(invitee('invitee.created', requestId));

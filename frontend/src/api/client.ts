@@ -21,6 +21,8 @@ export interface ApiClient {
   put<T>(path: string, body?: unknown): Promise<T>;
   patch<T>(path: string, body?: unknown): Promise<T>;
   delete<T = void>(path: string): Promise<T>;
+  /** POST raw bytes (the file's own Content-Type) instead of JSON. */
+  upload<T>(path: string, file: Blob): Promise<T>;
 }
 
 async function readError(response: Response): Promise<string> {
@@ -40,11 +42,12 @@ async function readError(response: Response): Promise<string> {
  * Attaches `Authorization: Bearer <Clerk session token>` whenever `getToken` yields one.
  */
 export function createApiClient(getToken: TokenGetter): ApiClient {
-  async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  async function request<T>(method: Method, path: string, body?: unknown, file?: Blob): Promise<T> {
     if (!apiUrl) throw new ApiError(0, "VITE_API_URL is not configured.");
 
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (file) headers["Content-Type"] = file.type || "application/octet-stream";
+    else if (body !== undefined) headers["Content-Type"] = "application/json";
     const token = await getToken().catch(() => null);
     if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -53,7 +56,7 @@ export function createApiClient(getToken: TokenGetter): ApiClient {
       response = await fetch(`${apiUrl}${path}`, {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body)
+        body: file ?? (body === undefined ? undefined : JSON.stringify(body))
       });
     } catch {
       throw new ApiError(0, "Could not reach the server. Please try again.");
@@ -69,7 +72,8 @@ export function createApiClient(getToken: TokenGetter): ApiClient {
     post: (path, body) => request("POST", path, body),
     put: (path, body) => request("PUT", path, body),
     patch: (path, body) => request("PATCH", path, body),
-    delete: (path) => request("DELETE", path)
+    delete: (path) => request("DELETE", path),
+    upload: (path, file) => request("POST", path, undefined, file)
   };
 }
 

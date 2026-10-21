@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
-import { defaultSelectableOptions } from "../data/defaults";
+import { defaultAbout, defaultSelectableOptions } from "../data/defaults";
 import { useSession } from "../auth/session";
 import { useApi, useResource } from "./hooks";
 import { useMe } from "./MeProvider";
@@ -22,6 +22,7 @@ interface ContentValue {
 }
 
 const emptyContent: SiteContent = {
+  about: defaultAbout,
   courses: [],
   examPrepTracks: [],
   reviews: [],

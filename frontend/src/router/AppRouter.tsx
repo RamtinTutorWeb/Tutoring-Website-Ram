@@ -10,6 +10,7 @@ import ExamPrepPage from "../pages/ExamPrepPage";
 import HomePage from "../pages/HomePage";
 import PolicyPage from "../pages/PolicyPage";
 import ProfilePage from "../pages/ProfilePage";
+import ResourcesPage from "../pages/ResourcesPage";
 import SettingsPage from "../pages/settings/SettingsPage";
 
 export default function AppRouter() {
@@ -21,6 +22,7 @@ export default function AppRouter() {
       <Route path="/assessment" element={<AssessmentPage />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/book" element={<BookPage />} />
+      <Route path="/resources" element={<ResourcesPage />} />
       <Route path="/policy" element={<PolicyPage />} />
       <Route path="/sign-in/*" element={<SignInPage />} />
       <Route path="/sign-up/*" element={<SignUpPage />} />

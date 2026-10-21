@@ -3,11 +3,11 @@ import { z } from 'zod';
 import * as db from '../db.js';
 import { badRequest } from '../errors.js';
 import { getClerkUser, getSessionUserId } from '../lib/clerk.js';
-import { normalizeCatalog, normalizeOptions } from '../lib/content.js';
+import { normalizeAbout, normalizeCatalog, normalizeOptions } from '../lib/content.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { SELECTABLE_OPTION_KEYS, type Course, type FaqItem, type SiteContent } from '../types.js';
 
-// site_settings rows: 'content' holds courses/examPrepTracks/faq,
+// site_settings rows: 'content' holds about/courses/examPrepTracks/faq,
 // 'selectable_options' holds the dropdown choices. Reviews have their own table.
 const CONTENT_KEY = 'content';
 const OPTIONS_KEY = 'selectable_options';
@@ -18,8 +18,28 @@ const id = z.string().trim().min(1).max(100);
 
 const courseSchema = z.object({ id, title: str(200), category: str(100), description: str(5000).default('') });
 const faqSchema = z.object({ id, question: str(1000), answer: str(10000) });
+/** Empty, or an absolute http(s) URL (rendered as href/src on public pages). */
+const httpUrl = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine((v) => v === '' || /^https?:\/\//i.test(v), 'must be an http(s) URL');
+const aboutSchema = z.object({
+  tutorName: str(120),
+  headline: str(200),
+  tagline: str(600),
+  bio: str(5000),
+  email: z.union([z.literal(''), z.string().trim().email().max(320)]),
+  phone: str(60),
+  location: str(200),
+  photoUrl: httpUrl,
+  videoUrl: httpUrl,
+  stats: z.array(z.object({ id, value: str(40), label: str(80) })).max(8),
+  highlights: z.array(str(200)).max(12),
+});
 
 const contentPatchSchema = z.object({
+  about: aboutSchema.optional(),
   courses: z.array(courseSchema).max(MAX_ITEMS).optional(),
   examPrepTracks: z.array(courseSchema).max(MAX_ITEMS).optional(),
   faq: z.array(faqSchema).max(MAX_ITEMS).optional(),
@@ -40,6 +60,7 @@ export async function loadSettingsContent(): Promise<SettingsContent> {
   const content = (settings[CONTENT_KEY] ?? {}) as Record<string, unknown>;
   const catalog = normalizeCatalog(arrayOf<Course>(content['courses']), arrayOf<Course>(content['examPrepTracks']));
   return {
+    about: normalizeAbout(content['about']),
     ...catalog,
     faq: arrayOf<FaqItem>(content['faq']),
     selectableOptions: normalizeOptions(settings[OPTIONS_KEY] as Record<string, unknown> | undefined),
@@ -76,6 +97,7 @@ contentRouter.put('/content', ...requireAdmin, async (req, res) => {
 
   const catalog = normalizeCatalog(patch.courses ?? current.courses, patch.examPrepTracks ?? current.examPrepTracks);
   const next: SettingsContent = {
+    about: patch.about ? normalizeAbout(patch.about) : current.about,
     ...catalog,
     faq: patch.faq ?? current.faq,
     selectableOptions: normalizeOptions({ ...current.selectableOptions, ...stripUndefined(patch.selectableOptions) }),

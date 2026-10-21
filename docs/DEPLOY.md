@@ -9,7 +9,7 @@ Env var reference: [`ARCHITECTURE.md`](ARCHITECTURE.md#env-contract). Never put 
 supabase login
 supabase projects create tutorpro --org-id <org> --region us-east-1 --db-password '<save this>'
 supabase link --project-ref <ref>
-supabase db push                       # applies supabase/migrations/* (do NOT run seed.sql in prod)
+supabase db push                       # applies supabase/migrations/* incl. the `resources` Storage bucket (do NOT run seed.sql in prod)
 supabase projects api-keys --project-ref <ref>
 ```
 
@@ -68,4 +68,4 @@ Without a verified domain Resend only delivers to the account owner's address.
 
 ## Smoke test
 
-1. `GET /health` all true. 2. Home shows courses/reviews. 3. Contact form → tutor gets an email. 4. Sign up → `profiles` row exists. 5. Admin accepts the request → student gets the `/book?request=…` email. 6. Book on Calendly → dashboard shows the booking; cancel → it flips to canceled.
+1. `GET /health` all true. 2. Home shows courses/reviews; Settings > Tutor Profile edits show on the home page. 2b. /resources: upload a file as admin, share it privately with a student -> they get an email and can download it from their dashboard. 3. Contact form → tutor gets an email. 4. Sign up → `profiles` row exists. 5. Admin accepts the request → student gets the `/book?request=…` email. 6. Book on Calendly → dashboard shows the booking; cancel → it flips to canceled.

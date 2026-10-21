@@ -2,11 +2,11 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { errorMessage } from "../../api/client";
 import { useContent } from "../../api/ContentProvider";
-import { useAdminUsers, useBookings, useLearnerCourses, useRequests } from "../../api/hooks";
+import { useAdminUsers, useBookings, useLearnerCourses, useRequests, useResources } from "../../api/hooks";
 import type { CourseStatus, Profile } from "../../api/types";
 import LoadState from "../../components/LoadState";
 import StatCard from "../../components/StatCard";
-import { formatDate, formatDateTime } from "../../lib/format";
+import { formatDate, formatSessionTime } from "../../lib/format";
 import { courseLookup, courseStatusLabels } from "./labels";
 import RequestsCard from "./RequestsCard";
 
@@ -16,6 +16,7 @@ export default function AdminDashboard() {
   const bookings = useBookings();
   const learnerCourses = useLearnerCourses();
   const users = useAdminUsers(true);
+  const resources = useResources();
   const [progressFeedback, setProgressFeedback] = useState({ text: "", error: false });
 
   const [assigning, setAssigning] = useState(false);
@@ -78,9 +79,15 @@ export default function AdminDashboard() {
     <div className="dashboard-stack" id="admin-dashboard">
       <div className="dashboard-grid">
         <StatCard label="Students" value={students.length} />
-        <StatCard label="Courses" value={content.courses.length + content.examPrepTracks.length} />
         <StatCard label="Open Requests" value={openRequests.length} />
         <StatCard label="Upcoming Sessions" value={upcoming.length} />
+        <StatCard label="Resources" value={resources.data?.length ?? 0} />
+      </div>
+
+      <div className="quick-actions">
+        <Link className="quick-action" to="/resources"><strong>Share a resource</strong><span>Upload notes or send a link to a student</span></Link>
+        <Link className="quick-action" to="/settings"><strong>Edit your profile</strong><span>Headline, bio, numbers and video on the home page</span></Link>
+        <Link className="quick-action" to="/"><strong>View public site</strong><span>See what visitors see</span></Link>
       </div>
 
       <RequestsCard
@@ -102,7 +109,7 @@ export default function AdminDashboard() {
               <div className="list-item" key={booking.id}>
                 <p>
                   <strong>{booking.inviteeName || booking.inviteeEmail || "Unknown invitee"}</strong>
-                  {" | "}{booking.eventTypeName || "Session"}{" | "}{formatDateTime(booking.startAt)}
+                  {" | "}{booking.eventTypeName || "Session"}{" | "}{formatSessionTime(booking.startAt)}
                 </p>
                 <p className="muted">
                   {booking.inviteeEmail ?? ""}
@@ -183,11 +190,6 @@ export default function AdminDashboard() {
         </div>
       </details>
 
-      <div className="card">
-        <h3>Site Content</h3>
-        <p className="muted">Edit courses, exam tracks, reviews, FAQ, and form options.</p>
-        <Link className="button-link primary" to="/settings">Open Settings</Link>
-      </div>
     </div>
   );
 }

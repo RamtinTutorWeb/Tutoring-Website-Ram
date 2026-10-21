@@ -15,7 +15,8 @@
 ```
 
 Rules
-- The browser never talks to Supabase. `@supabase/supabase-js` lives only in `backend/`.
+- The browser never talks to Supabase's API. The one exception is downloading a resource file: the
+  backend checks access, then hands out a 5-minute signed Storage URL (`GET /resources/:id/download`). `@supabase/supabase-js` lives only in `backend/`.
 - Auth = Clerk. Role source of truth = Clerk `publicMetadata.role` (`admin` | default `student`),
   mirrored to `profiles.role` by the Clerk webhook and by `GET /me` (upsert on first call).
 - Custom slot calendar is gone. Booking = Calendly. Flow: visitor/student submits a request on
@@ -61,7 +62,12 @@ Behavior details:
 - `POST /learner-courses` returns 400 for a `courseId` not in the content catalog.
 - A Calendly cancel moves the request `scheduled` -> `accepted` so the student can rebook.
 - `POST /requests` is rate-limited (10 / 15 min / IP, 429). Malformed `:id` -> 404.
-- `/webhooks/calendly` returns 503 when `CALENDLY_WEBHOOK_SIGNING_KEY` is unset.
+- `/webhooks/calendly` returns 503 when `CALENDLY_WEBHOOK_SIGNING_KEY` is unset. It stores the invitee's
+  `cancel_url`/`reschedule_url` (https calendly.com only) so students can manage sessions from the dashboard.
+- Resources: `public` = anyone (shown on /resources and, when `featured`, on the home page), `students` =
+  any signed-in user, `private` = only `studentIds` (who are emailed when added). Hidden resources 404.
+  Files live in the private Storage bucket `resources` (50 MB limit); upload is two steps: raw bytes to
+  `POST /resources/files?name=<file name>`, then `POST /resources` with the returned fields.
 
 JSON everywhere, camelCase in/out (backend maps to snake_case columns). Errors: `{ error: string }`
 with 400/401/403/404/409/500. `auth` = valid Clerk session required; `admin` = role admin.
@@ -89,6 +95,12 @@ Reviews live in their own `reviews` table. `GET /content` returns `reviews` (app
 `PUT /content` does NOT accept `reviews` (400 if present) — use the `/reviews` routes.
 | POST | `/assessments` | auth | `{ subject, answers, score, total, recommendation }` -> `Assessment` |
 | GET | `/assessments` | auth | student: own; admin: all |
+| GET | `/resources` | public (auth optional) | `Resource[]` newest first, filtered by visibility; `studentIds` only for admin |
+| GET | `/resources/:id/download` | public (auth optional) | `{ url }`: signed link for files, the target for links/videos |
+| POST | `/resources/files?name=` | admin | raw body, file's own Content-Type -> 201 `UploadedFile` |
+| POST | `/resources` | admin | `ResourceInput` -> 201 `Resource` |
+| PATCH | `/resources/:id` | admin | `Partial<ResourceInput>` -> `Resource` (a replaced/detached file is deleted) |
+| DELETE | `/resources/:id` | admin | 204, removes the file |
 | GET | `/admin/users` | admin | `Profile[]` |
 | POST | `/webhooks/clerk` | svix-signed | upsert/delete `profiles` |
 | POST | `/webhooks/calendly` | HMAC-signed | upsert `bookings`, set request `scheduled` |
@@ -102,9 +114,15 @@ interface Profile { id: string; email: string; fullName: string | null; phone: s
 interface Course { id: string; title: string; category: string; description: string }
 interface Review { id: string; name: string; rating: number; text: string; status?: "pending" | "approved" }
 interface FaqItem { id: string; question: string; answer: string }
+interface AboutStat { id: string; value: string; label: string }
+interface About {
+  tutorName: string; headline: string; tagline: string; bio: string; email: string; phone: string;
+  location: string; photoUrl: string /* http(s) or "" */; videoUrl: string /* YouTube/Vimeo/file or "" */;
+  stats: AboutStat[]; highlights: string[];
+}
 type SelectableOptionKey = "contactMethods" | "serviceTypes" | "urgencyWindows" | "urgencyFlags" | "assessmentSubjects" | "courseCategories";
 interface SiteContent {
-  courses: Course[]; examPrepTracks: Course[]; reviews: Review[]; faq: FaqItem[];
+  about: About; courses: Course[]; examPrepTracks: Course[]; reviews: Review[]; faq: FaqItem[];
   selectableOptions: Record<SelectableOptionKey, string[]>;
 }
 type RequestStatus = "new" | "accepted" | "declined" | "scheduled" | "closed";
@@ -120,9 +138,19 @@ interface SessionRequest extends Required<Omit<NewRequest, "isUrgent" | "consult
 interface Booking {
   id: string; studentId: string | null; requestId: string | null; inviteeName: string | null;
   inviteeEmail: string | null; eventTypeName: string | null; startAt: string | null; endAt: string | null;
-  status: "scheduled" | "canceled"; cancelReason: string | null;
+  status: "scheduled" | "canceled"; cancelReason: string | null; cancelUrl: string | null; rescheduleUrl: string | null;
 }
 type CourseStatus = "registered" | "in-progress" | "passed";
 interface LearnerCourse { id: string; studentId: string; courseId: string; status: CourseStatus; registeredAt: string }
+type ResourceKind = "file" | "link" | "video";
+type ResourceVisibility = "public" | "students" | "private";
+interface Resource {
+  id: string; title: string; description: string; kind: ResourceKind; url: string | null;
+  fileName: string | null; mimeType: string | null; sizeBytes: number | null; subject: string;
+  courseId: string | null; visibility: ResourceVisibility; studentIds: string[]; featured: boolean; createdAt: string;
+}
+interface UploadedFile { storagePath: string; fileName: string; mimeType: string; sizeBytes: number }
+type ResourceInput = Omit<Resource, "id" | "createdAt" | "url" | "fileName" | "mimeType" | "sizeBytes"> &
+  { url?: string | null } & Partial<UploadedFile>;
 interface Assessment { id: string; studentId: string; subject: string | null; answers: unknown; score: number | null; total: number | null; recommendation: string | null; createdAt: string }
 ```

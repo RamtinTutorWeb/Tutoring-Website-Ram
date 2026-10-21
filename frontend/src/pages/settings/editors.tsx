@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage } from "../../api/client";
 import { useContent, type ContentPatch } from "../../api/ContentProvider";
 import { useCreateReview, useReviewAdmin } from "../../api/hooks";
-import type { Course, Review, SelectableOptionKey, SiteContent } from "../../api/types";
+import type { About, AboutStat, Course, Review, SelectableOptionKey, SiteContent } from "../../api/types";
 import StarRating from "../../components/StarRating";
 import { uid } from "../../lib/id";
 
@@ -427,6 +427,73 @@ export function FaqEditor({ collapsible }: { collapsible?: boolean }) {
           </form>
         ))}
       </div>
+      {feedbackLine}
+    </Panel>
+  );
+}
+
+/** The public profile behind the home page: hero copy, bio, contact details, numbers and video. */
+export function TutorProfileEditor({ collapsible }: { collapsible?: boolean }) {
+  const { content, saving, run, feedbackLine } = useContentSave();
+  const [about, setAbout] = useState<About>(content.about);
+  const set = <K extends keyof About>(key: K, value: About[K]) => setAbout((current) => ({ ...current, [key]: value }));
+  const setStat = (id: string, patch: Partial<AboutStat>) =>
+    set("stats", about.stats.map((stat) => (stat.id === id ? { ...stat, ...patch } : stat)));
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    void run({
+      about: {
+        ...about,
+        stats: about.stats.filter((stat) => stat.value.trim() || stat.label.trim()),
+        highlights: about.highlights.map((line) => line.trim()).filter(Boolean)
+      }
+    }, "Tutor profile saved. The home page is updated.");
+  }
+
+  return (
+    <Panel title="Tutor Profile (home page)" collapsible={collapsible}>
+      <form onSubmit={handleSubmit} className="profile-editor">
+        <div className="grid-2">
+          <label>Your name<input value={about.tutorName} onChange={(e) => set("tutorName", e.target.value)} maxLength={120} /></label>
+          <label>Location<input value={about.location} onChange={(e) => set("location", e.target.value)} placeholder="Online & in person, Toronto" maxLength={200} /></label>
+        </div>
+        <label>Headline<input value={about.headline} onChange={(e) => set("headline", e.target.value)} maxLength={200} required /></label>
+        <label>Tagline<textarea rows={2} value={about.tagline} onChange={(e) => set("tagline", e.target.value)} maxLength={600} /></label>
+        <label>About you<textarea rows={5} value={about.bio} onChange={(e) => set("bio", e.target.value)} maxLength={5000} /></label>
+        <div className="grid-2">
+          <label>Public email<input type="email" value={about.email} onChange={(e) => set("email", e.target.value)} placeholder="you@domain.com" /></label>
+          <label>Public phone<input type="tel" value={about.phone} onChange={(e) => set("phone", e.target.value)} maxLength={60} /></label>
+        </div>
+        <div className="grid-2">
+          <label>Photo URL<input type="url" value={about.photoUrl} onChange={(e) => set("photoUrl", e.target.value)} placeholder="https://..." /></label>
+          <label>Intro video URL<input type="url" value={about.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="YouTube, Vimeo or .mp4 link" /></label>
+        </div>
+
+        <fieldset>
+          <legend>Headline numbers</legend>
+          {about.stats.map((stat) => (
+            <div className="stat-edit-row" key={stat.id}>
+              <input aria-label="Value" value={stat.value} onChange={(e) => setStat(stat.id, { value: e.target.value })} placeholder="300+" maxLength={40} />
+              <input aria-label="Label" value={stat.label} onChange={(e) => setStat(stat.id, { label: e.target.value })} placeholder="Students tutored" maxLength={80} />
+              <button type="button" className="danger" onClick={() => set("stats", about.stats.filter((item) => item.id !== stat.id))}>Remove</button>
+            </div>
+          ))}
+          {about.stats.length < 8 ? (
+            <button type="button" onClick={() => set("stats", [...about.stats, { id: uid(), value: "", label: "" }])}>Add number</button>
+          ) : null}
+        </fieldset>
+
+        <label>Highlights (one per line)
+          <textarea
+            rows={4}
+            value={about.highlights.join("\n")}
+            onChange={(e) => set("highlights", e.target.value.split("\n").slice(0, 12))}
+            placeholder={"Free 15-minute consultation\nFormer IB examiner"}
+          />
+        </label>
+        <button className="primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Profile"}</button>
+      </form>
       {feedbackLine}
     </Panel>
   );

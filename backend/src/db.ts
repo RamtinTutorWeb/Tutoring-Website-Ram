@@ -12,6 +12,9 @@ import type {
   LearnerCourse,
   Profile,
   RequestStatus,
+  Resource,
+  ResourceKind,
+  ResourceVisibility,
   Review,
   ReviewStatus,
   Role,
@@ -288,10 +291,12 @@ interface BookingRow {
   end_at: string | null;
   status: BookingStatus;
   cancel_reason: string | null;
+  cancel_url: string | null;
+  reschedule_url: string | null;
 }
 
 const BOOKING_COLS =
-  'id, student_id, request_id, invitee_name, invitee_email, event_type_name, start_at, end_at, status, cancel_reason';
+  'id, student_id, request_id, invitee_name, invitee_email, event_type_name, start_at, end_at, status, cancel_reason, cancel_url, reschedule_url';
 
 const toBooking = (r: BookingRow): Booking => ({
   id: r.id,
@@ -304,6 +309,8 @@ const toBooking = (r: BookingRow): Booking => ({
   endAt: r.end_at,
   status: r.status,
   cancelReason: r.cancel_reason,
+  cancelUrl: r.cancel_url,
+  rescheduleUrl: r.reschedule_url,
 });
 
 /** Ordered by start time. */
@@ -348,6 +355,8 @@ export interface BookingUpsert {
   endAt: string | null;
   status: BookingStatus;
   cancelReason: string | null;
+  cancelUrl: string | null;
+  rescheduleUrl: string | null;
   studentId: string | null;
   requestId: string | null;
   raw: unknown;
@@ -368,6 +377,8 @@ export async function upsertBooking(b: BookingUpsert): Promise<void> {
         end_at: b.endAt,
         status: b.status,
         cancel_reason: b.cancelReason,
+        cancel_url: b.cancelUrl,
+        reschedule_url: b.rescheduleUrl,
         student_id: b.studentId,
         request_id: b.requestId,
         raw: b.raw,
@@ -575,6 +586,178 @@ export async function deleteReview(id: string): Promise<boolean> {
   const { data, error } = await getSupabase().from('reviews').delete().eq('id', id).select('id');
   check(error, 'reviews delete');
   return (data?.length ?? 0) > 0;
+}
+
+// --- resources ---------------------------------------------------------------------------
+
+interface ResourceRow {
+  id: string;
+  title: string;
+  description: string;
+  kind: ResourceKind;
+  url: string | null;
+  storage_path: string | null;
+  file_name: string | null;
+  mime_type: string | null;
+  size_bytes: number | string | null;
+  subject: string;
+  course_id: string | null;
+  visibility: ResourceVisibility;
+  student_ids: string[] | null;
+  featured: boolean;
+  created_at: string;
+}
+
+const RESOURCE_COLS =
+  'id, title, description, kind, url, storage_path, file_name, mime_type, size_bytes, subject, course_id, visibility, student_ids, featured, created_at';
+
+/** A resource plus where its file lives in storage (never sent to clients). */
+export type StoredResource = Resource & { storagePath: string | null };
+
+const toResource = (r: ResourceRow): StoredResource => ({
+  id: r.id,
+  title: r.title,
+  description: r.description,
+  kind: r.kind,
+  url: r.url,
+  storagePath: r.storage_path,
+  fileName: r.file_name,
+  mimeType: r.mime_type,
+  sizeBytes: num(r.size_bytes),
+  subject: r.subject,
+  courseId: r.course_id,
+  visibility: r.visibility,
+  studentIds: r.student_ids ?? [],
+  featured: r.featured,
+  createdAt: r.created_at,
+});
+
+export interface ResourceWrite {
+  title: string;
+  description: string;
+  kind: ResourceKind;
+  url: string | null;
+  storagePath: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  subject: string;
+  courseId: string | null;
+  visibility: ResourceVisibility;
+  studentIds: string[];
+  featured: boolean;
+}
+
+function resourceRow(r: Partial<ResourceWrite>): Record<string, unknown> {
+  const columns: Record<keyof ResourceWrite, string> = {
+    title: 'title',
+    description: 'description',
+    kind: 'kind',
+    url: 'url',
+    storagePath: 'storage_path',
+    fileName: 'file_name',
+    mimeType: 'mime_type',
+    sizeBytes: 'size_bytes',
+    subject: 'subject',
+    courseId: 'course_id',
+    visibility: 'visibility',
+    studentIds: 'student_ids',
+    featured: 'featured',
+  };
+  const row: Record<string, unknown> = {};
+  for (const [key, column] of Object.entries(columns) as Array<[keyof ResourceWrite, string]>) {
+    if (r[key] !== undefined) row[column] = r[key];
+  }
+  return row;
+}
+
+/**
+ * Newest first. `scope`:
+ *   'all'      every resource (admin)
+ *   'public'   visibility public (signed-out visitors)
+ *   studentId  public + students + private ones shared with that student
+ */
+export async function listResources(scope: 'all' | 'public' | { studentId: string }): Promise<StoredResource[]> {
+  let query = getSupabase().from('resources').select(RESOURCE_COLS);
+  if (scope === 'public') query = query.eq('visibility', 'public');
+  else if (scope !== 'all') {
+    // Clerk ids are [A-Za-z0-9_]: drop anything else so the filter can't be broken out of.
+    const id = scope.studentId.replace(/[^\w-]/g, '') || '-';
+    query = query.or(`visibility.in.(public,students),student_ids.cs.{${id}}`);
+  }
+  const { data, error } = await query.order('created_at', { ascending: false }).returns<ResourceRow[]>();
+  check(error, 'resources list');
+  return (data ?? []).map(toResource);
+}
+
+export async function getResource(id: string): Promise<StoredResource | null> {
+  const { data, error } = await getSupabase()
+    .from('resources')
+    .select(RESOURCE_COLS)
+    .eq('id', id)
+    .maybeSingle<ResourceRow>();
+  check(error, 'resources select');
+  return data ? toResource(data) : null;
+}
+
+export async function createResource(r: ResourceWrite): Promise<StoredResource> {
+  const { data, error } = await getSupabase()
+    .from('resources')
+    .insert(resourceRow(r))
+    .select(RESOURCE_COLS)
+    .single<ResourceRow>();
+  if (error?.code === UNIQUE_VIOLATION) throw conflict('That file is already attached to another resource');
+  check(error, 'resources insert');
+  return toResource(data!);
+}
+
+export async function updateResource(id: string, patch: Partial<ResourceWrite>): Promise<StoredResource | null> {
+  const { data, error } = await getSupabase()
+    .from('resources')
+    .update(resourceRow(patch))
+    .eq('id', id)
+    .select(RESOURCE_COLS)
+    .maybeSingle<ResourceRow>();
+  check(error, 'resources update');
+  return data ? toResource(data) : null;
+}
+
+/** Returns the deleted row (so its file can be removed), or null when there was none. */
+export async function deleteResource(id: string): Promise<StoredResource | null> {
+  const { data, error } = await getSupabase()
+    .from('resources')
+    .delete()
+    .eq('id', id)
+    .select(RESOURCE_COLS)
+    .maybeSingle<ResourceRow>();
+  check(error, 'resources delete');
+  return data ? toResource(data) : null;
+}
+
+// --- storage (bucket `resources`, private) ------------------------------------------------
+
+const RESOURCE_BUCKET = 'resources';
+
+export async function uploadResourceFile(path: string, body: Buffer, contentType: string): Promise<void> {
+  const { error } = await getSupabase()
+    .storage.from(RESOURCE_BUCKET)
+    .upload(path, body, { contentType, upsert: false, cacheControl: '3600' });
+  check(error, 'storage upload');
+}
+
+/** Short-lived download link; `downloadName` sets Content-Disposition. */
+export async function signResourceFile(path: string, downloadName: string, expiresInSeconds = 300): Promise<string> {
+  const { data, error } = await getSupabase()
+    .storage.from(RESOURCE_BUCKET)
+    .createSignedUrl(path, expiresInSeconds, { download: downloadName });
+  check(error, 'storage sign');
+  return data!.signedUrl;
+}
+
+/** Best effort: an orphaned object is harmless, so this never throws. */
+export async function removeResourceFile(path: string): Promise<void> {
+  const { error } = await getSupabase().storage.from(RESOURCE_BUCKET).remove([path]);
+  if (error) console.error(`storage remove failed for ${path}: ${error.message}`);
 }
 
 // --- webhook_events (idempotency ledger) ----------------------------------------------------

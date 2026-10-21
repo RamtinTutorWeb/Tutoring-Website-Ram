@@ -11,8 +11,11 @@ import type {
   NewReview,
   Profile,
   RequestStatus,
+  Resource as LibraryResource,
+  ResourceInput,
   Review,
-  SessionRequest
+  SessionRequest,
+  UploadedFile
 } from "./types";
 
 /** API client bound to the current Clerk session (sends the bearer token when signed in). */
@@ -159,4 +162,44 @@ export function useReviewAdmin() {
 
 export function useAdminUsers(enabled: boolean) {
   return useResource<Profile[]>(enabled ? "/admin/users" : null);
+}
+
+/**
+ * Resource library. Signed out: public resources; students: public + shared with them;
+ * admins: everything, plus create/update/remove/upload.
+ */
+export function useResources() {
+  const api = useApi();
+  const resource = useResource<LibraryResource[]>("/resources");
+  const { setData } = resource;
+
+  const upload = useCallback(
+    (file: File) => api.upload<UploadedFile>(`/resources/files?name=${encodeURIComponent(file.name)}`, file),
+    [api]
+  );
+
+  const create = useCallback(async (input: ResourceInput) => {
+    const created = await api.post<LibraryResource>("/resources", input);
+    setData((current) => [created, ...(current ?? [])]);
+    return created;
+  }, [api, setData]);
+
+  const update = useCallback(async (id: string, patch: Partial<ResourceInput>) => {
+    const updated = await api.patch<LibraryResource>(`/resources/${encodeURIComponent(id)}`, patch);
+    setData((current) => replaceById(current, updated));
+    return updated;
+  }, [api, setData]);
+
+  const remove = useCallback(async (id: string) => {
+    await api.delete(`/resources/${encodeURIComponent(id)}`);
+    setData((current) => (current ?? []).filter((item) => item.id !== id));
+  }, [api, setData]);
+
+  /** Short-lived link for files; the target URL for links/videos. */
+  const open = useCallback(
+    async (id: string) => (await api.get<{ url: string }>(`/resources/${encodeURIComponent(id)}/download`)).url,
+    [api]
+  );
+
+  return { ...resource, upload, create, update, remove, open };
 }

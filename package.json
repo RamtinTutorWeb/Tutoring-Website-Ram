@@ -13,6 +13,10 @@
     "dev:backend": "npm --workspace backend run dev",
     "build": "npm --workspace frontend run build && npm --workspace backend run build",
     "typecheck": "tsc --noEmit -p frontend && npm --workspace backend run typecheck",
-    "test": "npm --workspace backend run test"
+    "test": "npm --workspace backend run test",
+    "e2e": "supabase db reset && playwright test -c e2e/playwright.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
   }
 }

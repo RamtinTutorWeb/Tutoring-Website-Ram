@@ -70,8 +70,25 @@ export interface About {
   highlights: string[];
 }
 
+/** A placement-assessment question; a miss recommends `topic`. */
+export interface AssessmentQuestion {
+  id: string;
+  text: string;
+  options: string[];
+  correctIndex: number;
+  topic: string;
+}
+
+export interface PolicySection {
+  id: string;
+  title: string;
+  body: string;
+}
+
 export interface SiteContent {
   about: About;
+  policySections: PolicySection[];
+  assessmentQuestions: AssessmentQuestion[];
   courses: Course[];
   examPrepTracks: Course[];
   reviews: Review[];

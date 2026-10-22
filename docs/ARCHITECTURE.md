@@ -31,6 +31,8 @@ Frontend (Vercel, public, baked at build):
 | `VITE_CLERK_PUBLISHABLE_KEY` | `pk_test_...` |
 | `VITE_API_URL` | `https://api.<domain>` (Railway), `http://localhost:4000` locally |
 | `VITE_CALENDLY_URL` | `https://calendly.com/<handle>/tutoring-session` |
+| `VITE_SITE_URL` | `https://<domain>`: og:image URL, robots.txt, sitemap.xml |
+| `VITE_TURNSTILE_SITE_KEY` | optional; pairs with `TURNSTILE_SECRET_KEY` |
 
 Backend (Railway, secret):
 | Var | Notes |
@@ -46,6 +48,8 @@ Backend (Railway, secret):
 | `CALENDLY_WEBHOOK_SIGNING_KEY` | `openssl rand -hex 32` |
 | `PUBLIC_API_URL` | public origin of the backend, for Calendly callback URL |
 | `ADMIN_API_TOKEN` | `x-admin-token` for `/admin/*` maintenance routes |
+| `TURNSTILE_SECRET_KEY` | optional; Cloudflare Turnstile check on `POST /requests` |
+| `DEV_AUTH` | local only; dev sign-in without Clerk |
 
 Missing optional integrations (Resend, Calendly) must degrade gracefully: log + skip, never crash.
 `GET /health` reports `{ ok, configured: { clerk, supabase, resend, calendly } }`.
@@ -61,7 +65,9 @@ Behavior details:
 - `GET /content` hides pending reviews unless the caller is admin (auth optional on that route).
 - `POST /learner-courses` returns 400 for a `courseId` not in the content catalog.
 - A Calendly cancel moves the request `scheduled` -> `accepted` so the student can rebook.
-- `POST /requests` is rate-limited (10 / 15 min / IP, 429). Malformed `:id` -> 404.
+- `POST /requests` is rate-limited (10 / 15 min / IP, 429). Malformed `:id` -> 404. With
+  `TURNSTILE_SECRET_KEY` set it also requires a valid `turnstileToken` in the body (400 otherwise).
+- `DEV_AUTH=1` (local only, see README) accepts `Authorization: Bearer dev:user_dev_<name>`; `user_dev_admin*` are admins.
 - `/webhooks/calendly` returns 503 when `CALENDLY_WEBHOOK_SIGNING_KEY` is unset. It stores the invitee's
   `cancel_url`/`reschedule_url` (https calendly.com only) so students can manage sessions from the dashboard.
 - Resources: `public` = anyone (shown on /resources and, when `featured`, on the home page), `students` =
@@ -101,6 +107,7 @@ Reviews live in their own `reviews` table. `GET /content` returns `reviews` (app
 | POST | `/resources` | admin | `ResourceInput` -> 201 `Resource` |
 | PATCH | `/resources/:id` | admin | `Partial<ResourceInput>` -> `Resource` (a replaced/detached file is deleted) |
 | DELETE | `/resources/:id` | admin | 204, removes the file |
+| POST | `/media?name=` | admin | raw image body (PNG/JPEG/WebP/GIF/AVIF, 5 MB) -> 201 `{ url }` public URL (bucket `site-media`) |
 | GET | `/admin/users` | admin | `Profile[]` |
 | POST | `/webhooks/clerk` | svix-signed | upsert/delete `profiles` |
 | POST | `/webhooks/calendly` | HMAC-signed | upsert `bookings`, set request `scheduled` |
@@ -121,8 +128,10 @@ interface About {
   stats: AboutStat[]; highlights: string[];
 }
 type SelectableOptionKey = "contactMethods" | "serviceTypes" | "urgencyWindows" | "urgencyFlags" | "assessmentSubjects" | "courseCategories";
+interface AssessmentQuestion { id: string; text: string; options: string[] /* 2-8 */; correctIndex: number; topic: string }
+interface PolicySection { id: string; title: string; body: string }
 interface SiteContent {
-  about: About; courses: Course[]; examPrepTracks: Course[]; reviews: Review[]; faq: FaqItem[];
+  about: About; assessmentQuestions: AssessmentQuestion[]; policySections: PolicySection[]; courses: Course[]; examPrepTracks: Course[]; reviews: Review[]; faq: FaqItem[];
   selectableOptions: Record<SelectableOptionKey, string[]>;
 }
 type RequestStatus = "new" | "accepted" | "declined" | "scheduled" | "closed";

@@ -23,6 +23,8 @@ interface ContentValue {
 
 const emptyContent: SiteContent = {
   about: defaultAbout,
+  assessmentQuestions: [],
+  policySections: [],
   courses: [],
   examPrepTracks: [],
   reviews: [],

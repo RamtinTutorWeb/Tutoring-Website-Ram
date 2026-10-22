@@ -187,3 +187,27 @@ describe('about (tutor profile)', () => {
     expect((await request(app).get('/content').expect(200)).body.about.tutorName).toBe('Ramtin');
   });
 });
+
+describe('assessment questions', () => {
+  it('defaults to the built-in test; admins replace it with validated questions', async () => {
+    const initial = (await request(app).get('/content').expect(200)).body;
+    expect(initial.assessmentQuestions).toHaveLength(5);
+
+    const q = { id: 'n1', text: 'What is 2 + 2?', options: ['3', '4'], correctIndex: 1, topic: 'Arithmetic' };
+    await request(app).put('/content').set(auth('user_admin')).send({ assessmentQuestions: [{ ...q, correctIndex: 2 }] }).expect(400);
+    await request(app).put('/content').set(auth('user_admin')).send({ assessmentQuestions: [{ ...q, options: ['only'] }] }).expect(400);
+    const saved = (await request(app).put('/content').set(auth('user_admin')).send({ assessmentQuestions: [q] }).expect(200)).body;
+    expect(saved.assessmentQuestions).toEqual([q]);
+    expect((await request(app).get('/content').expect(200)).body.assessmentQuestions).toEqual([q]);
+  });
+});
+
+describe('policy sections', () => {
+  it('defaults, then admins replace them', async () => {
+    expect((await request(app).get('/content').expect(200)).body.policySections.length).toBeGreaterThan(0);
+    const sections = [{ id: 'p1', title: 'Payments', body: 'Paid in advance.' }];
+    await request(app).put('/content').set(auth('user_student')).send({ policySections: sections }).expect(403);
+    const saved = (await request(app).put('/content').set(auth('user_admin')).send({ policySections: sections }).expect(200)).body;
+    expect(saved.policySections).toEqual(sections);
+  });
+});

@@ -22,7 +22,7 @@ The browser only talks to the API; only the API talks to Supabase. See [`docs/AR
 |---|---|
 | Visitor | Browse, open public resources, send a contact/session request, take the assessment (unsaved). |
 | Student | Everything above, plus: students-only and privately shared resources, saved assessments, own requests and bookings (reschedule/cancel links), register/drop courses, leave reviews. |
-| Admin | Accept/decline requests, see all bookings and users, upload/share resources, assign courses and set progress, approve reviews, edit the tutor profile, courses, exam tracks, FAQ and dropdown options. |
+| Admin | Accept/decline requests, see all bookings, a full record per student (requests, sessions, courses, assessments, shared material), upload/share resources, assign courses and set progress, approve reviews, edit the tutor profile and photo, assessment questions, courses, exam tracks, FAQ, policies and dropdown options. |
 
 Admin = Clerk user with public metadata `{ "role": "admin" }`.
 
@@ -40,6 +40,25 @@ npm run dev:frontend                            # http://localhost:5173
 ```
 
 Resend and Calendly are optional locally; the API logs and skips them when unset.
+
+### Local dev without Clerk
+
+Run the backend with `DEV_AUTH=1` (and no Clerk keys) against local Supabase, and the frontend with
+`VITE_DEV_AUTH=1` (and no `VITE_CLERK_PUBLISHABLE_KEY`). `/sign-in` then offers "Tutor (admin)" and
+"Student" buttons for the seeded users. The backend refuses this mode unless Clerk is unconfigured,
+`NODE_ENV` isn't `production` and `SUPABASE_URL` is localhost, and production builds of the frontend
+never include it.
+
+### End-to-end tests
+
+```bash
+supabase start      # once
+npm run e2e         # resets the local DB, starts API (:4100) + app (:5180) in DEV_AUTH mode, runs Playwright in your Chrome
+```
+
+`e2e/tutor-app.spec.ts` walks the whole app: request -> accept -> Calendly booking/cancel (signed
+webhooks), resource upload/share/download, tutor profile + photo, editable assessment, student
+records, review moderation, course and policy editing, and access control.
 
 ```bash
 npm run typecheck   # frontend + backend

@@ -12,74 +12,85 @@ export default function CoursesPage() {
   const { content, loading, error, refetch } = useContent();
   const { isSignedIn } = useSession();
   const { isAdmin } = useMe();
-  const categories = useMemo(
-    () => content.selectableOptions.courseCategories.filter((category) => category !== "All"),
-    [content.selectableOptions.courseCategories]
-  );
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [selectedCourseId, setSelectedCourseId] = useState("");
-  const activeCategory = categoryFilter || categories[0] || "";
+  // One fetch for the whole grid (signed-out viewers skip it inside the hook).
+  const learnerCourses = useLearnerCourses();
   const allCourses = useMemo(() => [...content.courses, ...content.examPrepTracks], [content.courses, content.examPrepTracks]);
-  const filteredCourses = allCourses.filter((course) => course.category === activeCategory);
-  const selectedCourse = filteredCourses.find((course) => course.id === selectedCourseId) ?? null;
+  // Configured categories first, then any category a course uses that isn't configured.
+  const categories = useMemo(() => {
+    const configured = content.selectableOptions.courseCategories.filter((category) => category !== "All");
+    const used = allCourses.map((course) => course.category).filter((category) => !configured.includes(category));
+    return [...configured, ...new Set(used)].filter((category) => allCourses.some((course) => course.category === category));
+  }, [content.selectableOptions.courseCategories, allCourses]);
+  const [category, setCategory] = useState("");
+  const [search, setSearch] = useState("");
+  const term = search.trim().toLowerCase();
+  const visible = allCourses.filter((course) => (
+    (!category || course.category === category) &&
+    (!term || `${course.title} ${course.description}`.toLowerCase().includes(term))
+  ));
 
   return (
     <section data-page="courses" className="page">
-      <h2>Courses</h2>
-      <p className="muted">
-        {isAdmin ? "Browse courses and manage the catalog." : "Filter by category and select a course to view topics covered."}
-      </p>
+      <div className="page-heading">
+        <p className="eyebrow">Courses</p>
+        <h2>What we can work on</h2>
+        <p className="lead">
+          {isAdmin ? "Your public catalog. Edit it below." : "Pick a course to see the topics it covers. Signed-in students can register to track progress."}
+        </p>
+      </div>
       <LoadState loading={loading} error={error} onRetry={() => void refetch()} />
 
-      <div className="filters">
-        <label>
-          Category
-          <select value={activeCategory} onChange={(e) => {
-            setCategoryFilter(e.target.value);
-            setSelectedCourseId("");
-          }}>
-            {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
-        </label>
-        <label>
-          Course
-          <select value={selectedCourseId} onChange={(e) => setSelectedCourseId(e.target.value)} disabled={!activeCategory}>
-            <option value="">{activeCategory ? "Select course" : "Select category first"}</option>
-            {filteredCourses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
-          </select>
-        </label>
+      <div className="chip-filters" role="group" aria-label="Filter by category">
+        <button type="button" className={!category ? "chip active" : "chip"} aria-pressed={!category} onClick={() => setCategory("")}>All</button>
+        {categories.map((cat) => (
+          <button type="button" key={cat} className={category === cat ? "chip active" : "chip"} aria-pressed={category === cat} onClick={() => setCategory(cat)}>{cat}</button>
+        ))}
+        <input className="chip-search" type="search" aria-label="Search courses" placeholder="Search topics" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <div className="card" id="course-details">
-        {selectedCourse ? (
-          <>
-            <h3>{selectedCourse.title}</h3>
-            <p><strong>Category:</strong> {selectedCourse.category}</p>
-            <p>{selectedCourse.description}</p>
-            {!isAdmin ? (
-              isSignedIn ? <RegisterButton courseId={selectedCourse.id} /> : (
-                <p className="muted"><Link to="/sign-in">Sign in</Link> to register for this course.</p>
-              )
-            ) : null}
-          </>
-        ) : filteredCourses.length ? (
-          <p className="muted">Select a course to display details.</p>
-        ) : !loading ? (
-          <p className="muted">No courses found for this category.</p>
-        ) : null}
-      </div>
+      {visible.length ? (
+        <div className="course-grid">
+          {visible.map((course) => (
+            <article className="course-card" key={course.id}>
+              <span className="tag">{course.category}</span>
+              <h3>{course.title}</h3>
+              <p>{course.description}</p>
+              <div className="course-card-foot">
+                {isAdmin ? null : isSignedIn ? <RegisterButton courseId={course.id} learnerCourses={learnerCourses} /> : (
+                  <Link className="text-link" to={`/sign-in?redirect_url=${encodeURIComponent("/courses")}`}>Sign in to register →</Link>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : !loading ? (
+        <div className="empty-state">{allCourses.length ? "No courses match these filters." : "Courses are being added. Get in touch to discuss what you need."}</div>
+      ) : null}
 
-      {isAdmin ? (
+      {!isAdmin ? (
+        <div className="cta-band">
+          <div>
+            <h3>Don't see your course?</h3>
+            <p>Most university and high-school math and physics courses are covered. Ask about yours.</p>
+          </div>
+          <div className="row"><Link className="button-link primary" to="/contact">Ask about a course</Link></div>
+        </div>
+      ) : (
         <div className="dashboard-stack" id="courses-admin">
           <CourseCatalogEditor />
         </div>
-      ) : null}
+      )}
     </section>
   );
 }
 
-function RegisterButton({ courseId }: { courseId: string }) {
-  const learnerCourses = useLearnerCourses();
+function RegisterButton({
+  courseId,
+  learnerCourses
+}: {
+  courseId: string;
+  learnerCourses: ReturnType<typeof useLearnerCourses>;
+}) {
   const [feedback, setFeedback] = useState({ text: "", error: false });
   const [busy, setBusy] = useState(false);
   const alreadyRegistered = (learnerCourses.data ?? []).some((record) => record.courseId === courseId);
@@ -96,15 +107,15 @@ function RegisterButton({ courseId }: { courseId: string }) {
     }
   }
 
-  if (learnerCourses.loading) return null;
+  if (learnerCourses.loading && !learnerCourses.data) return null;
   if (alreadyRegistered && !feedback.text) {
-    return <p className="muted">You are registered for this course. <Link to="/dashboard">View progress</Link></p>;
+    return <p className="muted">✓ Registered · <Link to="/dashboard">View progress</Link></p>;
   }
 
   return (
     <>
       {!alreadyRegistered ? (
-        <button className="primary" type="button" disabled={busy} onClick={() => void register()}>Register For This Course</button>
+        <button className="primary" type="button" disabled={busy} onClick={() => void register()}>Register</button>
       ) : null}
       <p className={`feedback ${feedback.error ? "error" : ""}`} role="status">{feedback.text}</p>
     </>

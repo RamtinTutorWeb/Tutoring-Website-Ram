@@ -1,4 +1,12 @@
-import { SELECTABLE_OPTION_KEYS, type About, type AboutStat, type Course, type SelectableOptions } from '../types.js';
+import {
+  SELECTABLE_OPTION_KEYS,
+  type About,
+  type AboutStat,
+  type AssessmentQuestion,
+  type Course,
+  type PolicySection,
+  type SelectableOptions,
+} from '../types.js';
 
 // Ported from the old settingsRouter: defaults and normalization rules are unchanged.
 
@@ -95,4 +103,56 @@ export function normalizeAbout(raw: unknown): About {
     stats,
     highlights,
   };
+}
+
+/** The original placement test, used until the tutor edits it (Settings > Assessment). */
+export const DEFAULT_ASSESSMENT_QUESTIONS: AssessmentQuestion[] = [
+  { id: 'q1', text: 'If 2x + 5 = 17, what is x?', options: ['4', '5', '6', '8'], correctIndex: 2, topic: 'Algebra Foundations' },
+  { id: 'q2', text: 'What is sin(30°)?', options: ['1', '1/2', '√2/2', '√3/2'], correctIndex: 1, topic: 'Trigonometry Basics' },
+  { id: 'q3', text: 'Sequence: 3, 6, 12, 24, ... next value?', options: ['30', '36', '42', '48'], correctIndex: 3, topic: 'Patterns and Sequences' },
+  {
+    id: 'q4',
+    text: 'A car accelerates uniformly from rest to 20 m/s in 4 s. What is its acceleration?',
+    options: ['4 m/s²', '5 m/s²', '16 m/s²', '80 m/s²'],
+    correctIndex: 1,
+    topic: 'Kinematics',
+  },
+  { id: 'q5', text: 'What is the derivative of x³?', options: ['x²', '3x', '3x²', 'x⁴/4'], correctIndex: 2, topic: 'Calculus Foundations' },
+];
+
+/** Defaults when never saved; drops questions without text, two options, or a valid answer. */
+export function normalizeQuestions(raw: unknown): AssessmentQuestion[] {
+  if (!Array.isArray(raw)) return DEFAULT_ASSESSMENT_QUESTIONS;
+  return (raw as Partial<AssessmentQuestion>[])
+    .filter((q) => q && typeof q.id === 'string' && typeof q.text === 'string' && Array.isArray(q.options))
+    .map((q) => ({
+      id: q.id!,
+      text: q.text!.trim(),
+      options: q.options!.map((o) => String(o).trim()).filter(Boolean),
+      correctIndex: Number(q.correctIndex),
+      topic: typeof q.topic === 'string' ? q.topic.trim() : '',
+    }))
+    .filter((q) => q.text && q.options.length >= 2 && Number.isInteger(q.correctIndex) && q.correctIndex >= 0 && q.correctIndex < q.options.length);
+}
+
+/** Shown on /policy until the tutor writes their own (Settings > Policies). */
+export const DEFAULT_POLICY_SECTIONS: PolicySection[] = [
+  {
+    id: 'policy-sessions',
+    title: 'Session Policy',
+    body: 'Send a tutoring request first. Once it is accepted you will receive a link to book a time through our online scheduler.\n\nCancellations and changes should be made as early as possible using the links in your booking confirmation email.',
+  },
+  {
+    id: 'policy-account',
+    title: 'Account Policy',
+    body: 'Users are responsible for keeping login information private. Password resets and sign-in methods are managed from your account menu.\n\nCourse progress and request details are used only to support tutoring operations.',
+  },
+];
+
+export function normalizePolicySections(raw: unknown): PolicySection[] {
+  if (!Array.isArray(raw)) return DEFAULT_POLICY_SECTIONS;
+  return (raw as Partial<PolicySection>[])
+    .filter((p) => p && typeof p.id === 'string' && typeof p.title === 'string' && typeof p.body === 'string')
+    .map((p) => ({ id: p.id!, title: p.title!.trim(), body: p.body!.trim() }))
+    .filter((p) => p.title || p.body);
 }

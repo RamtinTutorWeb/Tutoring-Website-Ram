@@ -11,3 +11,12 @@ export const isClerkConfigured = clerkPublishableKey.length > 0;
 export const apiUrl = (readEnv(import.meta.env.VITE_API_URL) || (import.meta.env.DEV ? "http://localhost:4000" : "")).replace(/\/+$/, "");
 
 export const calendlyUrl = readEnv(import.meta.env.VITE_CALENDLY_URL);
+
+/**
+ * Local-only dev sign-in (no Clerk): `vite` dev server + VITE_DEV_AUTH=1 + no Clerk key.
+ * The backend must run with DEV_AUTH=1 against local Supabase. Never true in a production build.
+ */
+export const isDevAuth = import.meta.env.DEV && !isClerkConfigured && readEnv(import.meta.env.VITE_DEV_AUTH) === "1";
+
+/** Cloudflare Turnstile site key; unset = no bot check on the contact form (backend must match). */
+export const turnstileSiteKey = readEnv(import.meta.env.VITE_TURNSTILE_SITE_KEY);

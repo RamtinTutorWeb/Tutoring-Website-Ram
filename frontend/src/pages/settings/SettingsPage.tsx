@@ -3,7 +3,7 @@ import { useContent } from "../../api/ContentProvider";
 import { useMe } from "../../api/MeProvider";
 import LoadState from "../../components/LoadState";
 import DashboardHeader from "../dashboard/DashboardHeader";
-import { allOptionGroups, CourseCatalogEditor, ExamTrackEditor, FaqEditor, OptionsEditor, Panel, ReviewsEditor, TutorProfileEditor } from "./editors";
+import { allOptionGroups, CourseCatalogEditor, ExamTrackEditor, FaqEditor, OptionsEditor, Panel, ReviewsEditor, TutorProfileEditor, AssessmentEditor, PolicyEditor } from "./editors";
 
 /** Admin-only site content editor (`PUT /content`). */
 export default function SettingsPage() {
@@ -42,12 +42,16 @@ export default function SettingsPage() {
             <ExamTrackEditor collapsible />
           </div>
 
+          <AssessmentEditor collapsible />
+
           <OptionsEditor title="Manage Student Form Options" groups={allOptionGroups} collapsible />
 
           <div className="grid-2">
             <ReviewsEditor collapsible />
             <FaqEditor collapsible />
           </div>
+
+          <PolicyEditor collapsible />
         </div>
       ) : null}
     </section>

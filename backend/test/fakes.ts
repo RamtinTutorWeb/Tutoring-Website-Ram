@@ -265,6 +265,11 @@ export const fakeDb: Db = {
     state.files.delete(path);
   }),
 
+  uploadSiteMedia: vi.fn(async (path, body, contentType) => {
+    state.files.set(`site-media/${path}`, { body, contentType });
+    return `https://storage.test/public/site-media/${path}`;
+  }),
+
   recordWebhookEvent: vi.fn(async (provider, eventId) => {
     const key = `${provider}:${eventId}`;
     if (state.webhookEvents.has(key)) return false;

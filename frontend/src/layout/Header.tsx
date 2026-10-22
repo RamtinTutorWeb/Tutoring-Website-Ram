@@ -9,7 +9,7 @@ function navClass({ isActive }: { isActive: boolean }): string {
 }
 
 export default function Header() {
-  const { configured, isSignedIn } = useSession();
+  const { mode, isSignedIn, signOut } = useSession();
   const { isAdmin } = useMe();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -42,12 +42,16 @@ export default function Header() {
             <li><NavLink to="/resources" className={navClass}>Resources</NavLink></li>
             {!isAdmin ? <li><NavLink to="/assessment" className={navClass}>Assessment</NavLink></li> : null}
             {isAdmin ? <li><NavLink to="/contact" className={navClass}>Requests</NavLink></li> : null}
+            {isAdmin ? <li><NavLink to="/students" className={navClass}>Students</NavLink></li> : null}
             {isSignedIn ? <li><NavLink to="/dashboard" className={navClass}>Dashboard</NavLink></li> : null}
             {isAdmin ? <li><NavLink to="/settings" className={navClass}>Settings</NavLink></li> : null}
             {isSignedIn && !isAdmin ? <li><NavLink to="/profile" className={navClass}>Profile</NavLink></li> : null}
             {!isSignedIn ? <li><NavLink to="/sign-in" className={navClass}>Sign in</NavLink></li> : null}
             {!isAdmin ? <li><Link to="/contact" className="button-link primary nav-cta">Book a session</Link></li> : null}
-            {configured && isSignedIn ? <li className="nav-user"><UserButton /></li> : null}
+            {mode === "clerk" && isSignedIn ? <li className="nav-user"><UserButton /></li> : null}
+            {mode === "dev" && isSignedIn ? (
+              <li className="nav-user"><button type="button" className="nav-signout" onClick={() => void signOut()}>Sign out</button></li>
+            ) : null}
           </ul>
         </nav>
       </div>

@@ -1,8 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage } from "../../api/client";
 import { useContent, type ContentPatch } from "../../api/ContentProvider";
-import { useCreateReview, useReviewAdmin } from "../../api/hooks";
-import type { About, AboutStat, Course, Review, SelectableOptionKey, SiteContent } from "../../api/types";
+import { useCreateReview, useReviewAdmin, useUploadMedia } from "../../api/hooks";
+import type { About, AboutStat, AssessmentQuestion, Course, Review, SelectableOptionKey, SiteContent } from "../../api/types";
 import StarRating from "../../components/StarRating";
 import { uid } from "../../lib/id";
 
@@ -434,11 +434,30 @@ export function FaqEditor({ collapsible }: { collapsible?: boolean }) {
 
 /** The public profile behind the home page: hero copy, bio, contact details, numbers and video. */
 export function TutorProfileEditor({ collapsible }: { collapsible?: boolean }) {
-  const { content, saving, run, feedbackLine } = useContentSave();
+  const { content, saving, run, setFeedback, feedbackLine } = useContentSave();
+  const uploadMedia = useUploadMedia();
+  const [uploading, setUploading] = useState(false);
   const [about, setAbout] = useState<About>(content.about);
   const set = <K extends keyof About>(key: K, value: About[K]) => setAbout((current) => ({ ...current, [key]: value }));
   const setStat = (id: string, patch: Partial<AboutStat>) =>
     set("stats", about.stats.map((stat) => (stat.id === id ? { ...stat, ...patch } : stat)));
+
+  async function handlePhoto(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setFeedback({ text: "Photos must be 5 MB or smaller.", error: true });
+      return;
+    }
+    setUploading(true);
+    try {
+      set("photoUrl", await uploadMedia(file));
+      setFeedback({ text: "Photo uploaded. Save Profile to publish it.", error: false });
+    } catch (err) {
+      setFeedback({ text: errorMessage(err, "Could not upload the photo."), error: true });
+    } finally {
+      setUploading(false);
+    }
+  }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -465,10 +484,18 @@ export function TutorProfileEditor({ collapsible }: { collapsible?: boolean }) {
           <label>Public email<input type="email" value={about.email} onChange={(e) => set("email", e.target.value)} placeholder="you@domain.com" /></label>
           <label>Public phone<input type="tel" value={about.phone} onChange={(e) => set("phone", e.target.value)} maxLength={60} /></label>
         </div>
-        <div className="grid-2">
-          <label>Photo URL<input type="url" value={about.photoUrl} onChange={(e) => set("photoUrl", e.target.value)} placeholder="https://..." /></label>
-          <label>Intro video URL<input type="url" value={about.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="YouTube, Vimeo or .mp4 link" /></label>
+        <div className="photo-field">
+          {about.photoUrl ? <img className="photo-preview" src={about.photoUrl} alt="Current profile photo" /> : <div className="photo-preview empty" aria-hidden="true">No photo</div>}
+          <div>
+            <label className="button-link upload-button">
+              {uploading ? "Uploading..." : about.photoUrl ? "Replace photo" : "Upload photo"}
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" disabled={uploading} onChange={(e) => void handlePhoto(e.target.files?.[0])} />
+            </label>
+            {about.photoUrl ? <button type="button" className="danger" onClick={() => set("photoUrl", "")}>Remove</button> : null}
+            <label>Or paste an image URL<input type="url" value={about.photoUrl} onChange={(e) => set("photoUrl", e.target.value)} placeholder="https://..." /></label>
+          </div>
         </div>
+        <label>Intro video URL<input type="url" value={about.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="YouTube, Vimeo or .mp4 link" /></label>
 
         <fieldset>
           <legend>Headline numbers</legend>
@@ -492,7 +519,148 @@ export function TutorProfileEditor({ collapsible }: { collapsible?: boolean }) {
             placeholder={"Free 15-minute consultation\nFormer IB examiner"}
           />
         </label>
-        <button className="primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Profile"}</button>
+        <button className="primary" type="submit" disabled={saving || uploading}>{saving ? "Saving..." : "Save Profile"}</button>
+      </form>
+      {feedbackLine}
+    </Panel>
+  );
+}
+
+const blankQuestion = (): AssessmentQuestion => ({ id: uid(), text: "", options: ["", ""], correctIndex: 0, topic: "" });
+
+/** The placement test on /assessment: questions, options, the right answer, and the topic a miss recommends. */
+export function AssessmentEditor({ collapsible }: { collapsible?: boolean }) {
+  const { content, saving, run, setFeedback, feedbackLine } = useContentSave();
+  const [questions, setQuestions] = useState<AssessmentQuestion[]>(content.assessmentQuestions);
+  const edit = (id: string, patch: Partial<AssessmentQuestion>) =>
+    setQuestions((current) => current.map((q) => (q.id === id ? { ...q, ...patch } : q)));
+
+  function setOption(q: AssessmentQuestion, index: number, value: string) {
+    edit(q.id, { options: q.options.map((o, i) => (i === index ? value : o)) });
+  }
+
+  function removeOption(q: AssessmentQuestion, index: number) {
+    const options = q.options.filter((_, i) => i !== index);
+    const correctIndex = q.correctIndex === index ? 0 : q.correctIndex > index ? q.correctIndex - 1 : q.correctIndex;
+    edit(q.id, { options, correctIndex });
+  }
+
+  function move(index: number, delta: number) {
+    setQuestions((current) => {
+      const next = [...current];
+      const [item] = next.splice(index, 1);
+      next.splice(Math.max(0, Math.min(next.length, index + delta)), 0, item!);
+      return next;
+    });
+  }
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const cleaned = questions.map((q) => {
+      const kept = q.options.map((o, i) => ({ o: o.trim(), i })).filter((x) => x.o);
+      const correct = kept.findIndex((x) => x.i === q.correctIndex);
+      return { ...q, text: q.text.trim(), topic: q.topic.trim(), options: kept.map((x) => x.o), correctIndex: correct };
+    });
+    const broken = cleaned.findIndex((q) => !q.text || q.options.length < 2 || q.correctIndex < 0);
+    if (broken >= 0) {
+      setFeedback({ text: `Question ${broken + 1} needs text, at least two options, and a correct answer that isn't blank.`, error: true });
+      return;
+    }
+    void run({ assessmentQuestions: cleaned }, "Assessment saved.").then((ok) => { if (ok) setQuestions(cleaned); });
+  }
+
+  return (
+    <Panel title={`Placement Assessment (${questions.length} questions)`} collapsible={collapsible}>
+      <p className="muted">Students see these on the Assessment page. A missed question recommends its topic as the place to start.</p>
+      <form onSubmit={handleSubmit}>
+        <div className="list">
+          {questions.map((q, qi) => (
+            <fieldset className="list-item question-edit" key={q.id}>
+              <legend>Question {qi + 1}</legend>
+              <label>Question<input value={q.text} onChange={(e) => edit(q.id, { text: e.target.value })} maxLength={1000} required /></label>
+              <div className="option-edit-list" role="radiogroup" aria-label={`Correct answer for question ${qi + 1}`}>
+                {q.options.map((option, oi) => (
+                  <div className="option-edit" key={oi}>
+                    <input
+                      type="radio"
+                      name={`correct-${q.id}`}
+                      aria-label={`Option ${oi + 1} is correct`}
+                      checked={q.correctIndex === oi}
+                      onChange={() => edit(q.id, { correctIndex: oi })}
+                    />
+                    <input aria-label={`Option ${oi + 1}`} value={option} onChange={(e) => setOption(q, oi, e.target.value)} maxLength={300} placeholder={`Option ${oi + 1}`} />
+                    {q.options.length > 2 ? <button type="button" className="danger" onClick={() => removeOption(q, oi)} aria-label={`Remove option ${oi + 1}`}>✕</button> : null}
+                  </div>
+                ))}
+              </div>
+              <p className="muted">Select the radio button next to the correct answer.</p>
+              <label>Topic to recommend when missed<input value={q.topic} onChange={(e) => edit(q.id, { topic: e.target.value })} maxLength={200} placeholder="e.g. Kinematics" /></label>
+              <div className="row">
+                {q.options.length < 8 ? <button type="button" onClick={() => edit(q.id, { options: [...q.options, ""] })}>Add option</button> : null}
+                <button type="button" disabled={qi === 0} onClick={() => move(qi, -1)}>Move up</button>
+                <button type="button" disabled={qi === questions.length - 1} onClick={() => move(qi, 1)}>Move down</button>
+                <button type="button" className="danger" onClick={() => setQuestions((current) => current.filter((x) => x.id !== q.id))}>Delete question</button>
+              </div>
+            </fieldset>
+          ))}
+        </div>
+        <div className="row">
+          {questions.length < 50 ? <button type="button" onClick={() => setQuestions((current) => [...current, blankQuestion()])}>Add question</button> : null}
+          <button className="primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Assessment"}</button>
+        </div>
+      </form>
+      {feedbackLine}
+    </Panel>
+  );
+}
+
+/** Sections of the public /policy page (cancellations, payments, privacy...). */
+export function PolicyEditor({ collapsible }: { collapsible?: boolean }) {
+  const { content, saving, run, feedbackLine } = useContentSave();
+  const sections = content.policySections;
+  const read = (form: HTMLFormElement) => {
+    const fd = new FormData(form);
+    return { title: String(fd.get("title") ?? "").trim(), body: String(fd.get("body") ?? "").trim() };
+  };
+
+  async function handleAdd(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    if (await run({ policySections: [...sections, { id: uid(), ...read(form) }] }, "Policy section added.")) form.reset();
+  }
+
+  function handleUpdate(e: FormEvent<HTMLFormElement>, id: string) {
+    e.preventDefault();
+    const next = { id, ...read(e.currentTarget) };
+    void run({ policySections: sections.map((item) => (item.id === id ? next : item)) }, "Policy section updated.");
+  }
+
+  return (
+    <Panel title="Manage Policies" collapsible={collapsible}>
+      <p className="muted">Shown on the Policies page. Cover cancellations, payment, and how you handle student data. Separate paragraphs with a blank line.</p>
+      <div className="list">
+        {sections.map((item) => (
+          <form className="list-item" key={item.id} onSubmit={(e) => handleUpdate(e, item.id)}>
+            <label>Title<input name="title" defaultValue={item.title} required maxLength={200} /></label>
+            <label>Text<textarea name="body" rows={4} defaultValue={item.body} required maxLength={20000} /></label>
+            <div className="row">
+              <button type="submit" disabled={saving}>Save</button>
+              <button
+                className="danger"
+                type="button"
+                disabled={saving}
+                onClick={() => void run({ policySections: sections.filter((entry) => entry.id !== item.id) }, "Policy section deleted.")}
+              >
+                Delete
+              </button>
+            </div>
+          </form>
+        ))}
+      </div>
+      <form onSubmit={handleAdd}>
+        <label>New section title<input name="title" required maxLength={200} placeholder="Cancellations & refunds" /></label>
+        <label>Text<textarea name="body" rows={3} required maxLength={20000} /></label>
+        <button className="primary" type="submit" disabled={saving}>Add Section</button>
       </form>
       {feedbackLine}
     </Panel>

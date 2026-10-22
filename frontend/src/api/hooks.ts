@@ -203,3 +203,12 @@ export function useResources() {
 
   return { ...resource, upload, create, update, remove, open };
 }
+
+/** Admin: upload a public site image (PNG/JPEG/WebP/GIF/AVIF, 5 MB); resolves to its public URL. */
+export function useUploadMedia() {
+  const api = useApi();
+  return useCallback(
+    async (file: File) => (await api.upload<{ url: string }>(`/media?name=${encodeURIComponent(file.name)}`, file)).url,
+    [api]
+  );
+}

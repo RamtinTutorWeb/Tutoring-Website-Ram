@@ -46,14 +46,16 @@ export function ResourceCard({
       setPlaying((value) => !value);
       return;
     }
-    // Open the tab synchronously so pop-up blockers allow it, then point it at the signed URL.
-    const tab = resource.kind === "file" ? window.open("", "_blank") : null;
+    // Files come back as attachments (Content-Disposition), so navigating this tab just starts
+    // the download and the page stays put. Links open in a new tab.
+    const tab = resource.kind === "file" ? null : window.open("", "_blank");
     if (tab) tab.opener = null;
     setBusy(true);
     setError("");
     try {
       const url = await onOpen(resource.id);
-      if (tab) tab.location.href = url;
+      if (resource.kind === "file") window.location.assign(url);
+      else if (tab) tab.location.href = url;
       else window.open(url, "_blank", "noopener");
     } catch (err) {
       tab?.close();

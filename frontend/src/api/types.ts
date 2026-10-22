@@ -64,8 +64,25 @@ export interface About {
   highlights: string[];
 }
 
+/** A placement-assessment question; a miss recommends `topic`. */
+export interface AssessmentQuestion {
+  id: string;
+  text: string;
+  options: string[];
+  correctIndex: number;
+  topic: string;
+}
+
+export interface PolicySection {
+  id: string;
+  title: string;
+  body: string;
+}
+
 export interface SiteContent {
   about: About;
+  policySections: PolicySection[];
+  assessmentQuestions: AssessmentQuestion[];
   courses: Course[];
   examPrepTracks: Course[];
   reviews: Review[];
@@ -90,9 +107,11 @@ export interface NewRequest {
   earliestDate?: string;
   message?: string;
   consultation?: boolean;
+  /** Cloudflare Turnstile token when the bot check is enabled. Not stored. */
+  turnstileToken?: string;
 }
 
-export interface SessionRequest extends Required<Omit<NewRequest, "isUrgent" | "consultation">> {
+export interface SessionRequest extends Required<Omit<NewRequest, "isUrgent" | "consultation" | "turnstileToken">> {
   id: string;
   studentId: string | null;
   isUrgent: boolean;

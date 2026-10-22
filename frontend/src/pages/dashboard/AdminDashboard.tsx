@@ -85,9 +85,9 @@ export default function AdminDashboard() {
       </div>
 
       <div className="quick-actions">
+        <Link className="quick-action" to="/students"><strong>Students</strong><span>Full record per student: sessions, courses, assessments</span></Link>
         <Link className="quick-action" to="/resources"><strong>Share a resource</strong><span>Upload notes or send a link to a student</span></Link>
         <Link className="quick-action" to="/settings"><strong>Edit your profile</strong><span>Headline, bio, numbers and video on the home page</span></Link>
-        <Link className="quick-action" to="/"><strong>View public site</strong><span>See what visitors see</span></Link>
       </div>
 
       <RequestsCard
@@ -182,7 +182,12 @@ export default function AdminDashboard() {
           <div className="list">
             {allUsers.map((user) => (
               <div className="list-item" key={user.id}>
-                <p><strong>{user.fullName || user.email}</strong> {user.role === "admin" ? <span className="role-pill">Admin</span> : null}</p>
+                <p>
+                  {user.role === "student"
+                    ? <Link to={`/students/${encodeURIComponent(user.id)}`}><strong>{user.fullName || user.email}</strong></Link>
+                    : <strong>{user.fullName || user.email}</strong>}{" "}
+                  {user.role === "admin" ? <span className="role-pill">Admin</span> : null}
+                </p>
                 <p className="muted">{user.email}{user.phone ? ` | ${user.phone}` : ""} | Joined {formatDate(user.createdAt)}</p>
               </div>
             ))}

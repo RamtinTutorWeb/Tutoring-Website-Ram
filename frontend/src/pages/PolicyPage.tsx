@@ -1,19 +1,28 @@
+import { useContent } from "../api/ContentProvider";
+import { useMe } from "../api/MeProvider";
+import LoadState from "../components/LoadState";
+import { PolicyEditor } from "./settings/editors";
+
 export default function PolicyPage() {
+  const { content, loading, error, refetch } = useContent();
+  const { isAdmin } = useMe();
+
   return (
     <section data-page="policy" className="page">
-      <h2>Policy</h2>
-      <div className="grid-2">
-        <div className="card">
-          <h3>Session Policy</h3>
-          <p>Send a tutoring request first. Once it is accepted you will receive a link to book a time through our online scheduler.</p>
-          <p>Cancellations and changes should be made as early as possible using the links in your booking confirmation email.</p>
-        </div>
-        <div className="card">
-          <h3>Account Policy</h3>
-          <p>Users are responsible for keeping login information private. Password resets and sign-in methods are managed from your account menu.</p>
-          <p>Course progress and request details are used only to support tutoring operations.</p>
-        </div>
+      <div className="page-heading">
+        <p className="eyebrow">The fine print</p>
+        <h2>Policies</h2>
       </div>
+      <LoadState loading={loading} error={error} onRetry={() => void refetch()} />
+      <div className="policy-grid">
+        {content.policySections.map((section) => (
+          <article className="card policy-card" key={section.id}>
+            <h3>{section.title}</h3>
+            {section.body.split(/\n{2,}/).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+          </article>
+        ))}
+      </div>
+      {isAdmin ? <PolicyEditor /> : null}
     </section>
   );
 }

@@ -12,6 +12,7 @@ import PolicyPage from "../pages/PolicyPage";
 import ProfilePage from "../pages/ProfilePage";
 import ResourcesPage from "../pages/ResourcesPage";
 import SettingsPage from "../pages/settings/SettingsPage";
+import { StudentDetailPage, StudentsPage } from "../pages/admin/StudentsPage";
 
 export default function AppRouter() {
   return (
@@ -30,6 +31,8 @@ export default function AppRouter() {
       <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
       <Route path="/settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
+      <Route path="/students" element={<RequireAdmin><StudentsPage /></RequireAdmin>} />
+      <Route path="/students/:id" element={<RequireAdmin><StudentDetailPage /></RequireAdmin>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -760,6 +760,18 @@ export async function removeResourceFile(path: string): Promise<void> {
   if (error) console.error(`storage remove failed for ${path}: ${error.message}`);
 }
 
+// --- storage (bucket `site-media`, public) ------------------------------------------------
+
+const MEDIA_BUCKET = 'site-media';
+
+/** Uploads a public site image and returns its public URL. */
+export async function uploadSiteMedia(path: string, body: Buffer, contentType: string): Promise<string> {
+  const storage = getSupabase().storage.from(MEDIA_BUCKET);
+  const { error } = await storage.upload(path, body, { contentType, upsert: false, cacheControl: '31536000' });
+  check(error, 'storage upload');
+  return storage.getPublicUrl(path).data.publicUrl;
+}
+
 // --- webhook_events (idempotency ledger) ----------------------------------------------------
 
 export type WebhookProvider = 'clerk' | 'calendly';

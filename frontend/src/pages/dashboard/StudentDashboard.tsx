@@ -32,6 +32,7 @@ export default function StudentDashboard() {
     { registered: 0, "in-progress": 0, passed: 0 }
   );
   const myRequests = requests.data ?? [];
+  const readyToBook = myRequests.filter((request) => request.status === "accepted");
   const now = Date.now();
   const sortedBookings = [...(bookings.data ?? [])].sort((a, b) => Date.parse(a.startAt ?? "") - Date.parse(b.startAt ?? ""));
   const upcoming = sortedBookings.filter((b) => b.status === "scheduled" && Date.parse(b.endAt ?? b.startAt ?? "") >= now);
@@ -79,6 +80,18 @@ export default function StudentDashboard() {
         <StatCard label="Upcoming Sessions" value={upcoming.length} />
       </div>
 
+      {readyToBook.map((request) => (
+        <div className="next-session ready-to-book" role="status" key={request.id}>
+          <div>
+            <p className="eyebrow">Request accepted</p>
+            <h3>{request.subject || request.serviceType || "Your tutoring request"} · pick a time</h3>
+            <p className="muted">Your tutor accepted your request. Choose a slot that suits you.</p>
+          </div>
+          <div className="row">
+            <Link className="button-link primary" to={`/book?request=${encodeURIComponent(request.id)}`}>Book now</Link>
+          </div>
+        </div>
+      ))}
       {upcoming[0] ? <NextSession booking={upcoming[0]} /> : null}
 
       <div className="card" id="student-request-history">

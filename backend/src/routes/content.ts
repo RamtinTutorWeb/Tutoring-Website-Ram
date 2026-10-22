@@ -3,11 +3,11 @@ import { z } from 'zod';
 import * as db from '../db.js';
 import { badRequest } from '../errors.js';
 import { getClerkUser, getSessionUserId } from '../lib/clerk.js';
-import { normalizeCatalog, normalizeOptions, normalizePages } from '../lib/content.js';
+import { normalizeCatalog, normalizeOptions, normalizePages, normalizeQuestions } from '../lib/content.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { SELECTABLE_OPTION_KEYS, type Course, type FaqItem, type SiteContent } from '../types.js';
 
-// site_settings rows: 'content' holds courses/examPrepTracks/faq,
+// site_settings rows: 'content' holds courses/examPrepTracks/faq/assessmentQuestions,
 // 'selectable_options' holds the dropdown choices, 'pages' the editable page copy.
 // Reviews have their own table.
 const CONTENT_KEY = 'content';
@@ -29,7 +29,9 @@ const httpsUrl = (hosts?: string[]) =>
     if (!value) return true;
     try {
       const url = new URL(value);
-      if (url.protocol !== 'https:') return false;
+      // http only for a local dev stack (local Supabase storage serves uploads over http).
+      const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+      if (url.protocol !== 'https:' && !(local && url.protocol === 'http:' && !hosts)) return false;
       return !hosts || hosts.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
     } catch {
       return false;
@@ -54,7 +56,18 @@ const pagesPatchSchema = z
   })
   .partial();
 
+const questionSchema = z
+  .object({
+    id,
+    text: z.string().trim().min(1).max(1000),
+    options: z.array(z.string().trim().min(1).max(300)).min(2).max(8),
+    correctIndex: z.number().int().min(0),
+    topic: str(200),
+  })
+  .refine((q) => q.correctIndex < q.options.length, 'correctIndex: must point at an option');
+
 const contentPatchSchema = z.object({
+  assessmentQuestions: z.array(questionSchema).max(50).optional(),
   courses: z.array(courseSchema).max(MAX_ITEMS).optional(),
   examPrepTracks: z.array(courseSchema).max(MAX_ITEMS).optional(),
   faq: z.array(faqSchema).max(MAX_ITEMS).optional(),
@@ -80,6 +93,7 @@ export async function loadSettingsContent(): Promise<SettingsContent> {
     faq: arrayOf<FaqItem>(content['faq']),
     selectableOptions: normalizeOptions(settings[OPTIONS_KEY] as Record<string, unknown> | undefined),
     pages: normalizePages(settings[PAGES_KEY]),
+    assessmentQuestions: normalizeQuestions(content['assessmentQuestions']),
   };
 }
 
@@ -118,6 +132,7 @@ contentRouter.put('/content', ...requireAdmin, async (req, res) => {
     selectableOptions: normalizeOptions({ ...current.selectableOptions, ...stripUndefined(patch.selectableOptions) }),
     // Each page present in the patch replaces that page; the others are kept.
     pages: normalizePages({ ...current.pages, ...stripUndefined(patch.pages) }),
+    assessmentQuestions: patch.assessmentQuestions ?? current.assessmentQuestions,
   };
 
   const { selectableOptions, pages, ...content } = next;

@@ -1,4 +1,11 @@
-import { PAGE_KEYS, SELECTABLE_OPTION_KEYS, type Course, type SelectableOptions, type SitePages } from '../types.js';
+import {
+  PAGE_KEYS,
+  SELECTABLE_OPTION_KEYS,
+  type AssessmentQuestion,
+  type Course,
+  type SelectableOptions,
+  type SitePages,
+} from '../types.js';
 
 // Ported from the old settingsRouter: defaults and normalization rules are unchanged.
 
@@ -119,4 +126,34 @@ export function normalizePages(stored: unknown): SitePages {
     );
   }
   return pages as unknown as SitePages;
+}
+
+/** The original placement test, used until the tutor edits it (Admin > Assessment). */
+export const DEFAULT_ASSESSMENT_QUESTIONS: AssessmentQuestion[] = [
+  { id: 'q1', text: 'If 2x + 5 = 17, what is x?', options: ['4', '5', '6', '8'], correctIndex: 2, topic: 'Algebra Foundations' },
+  { id: 'q2', text: 'What is sin(30°)?', options: ['1', '1/2', '√2/2', '√3/2'], correctIndex: 1, topic: 'Trigonometry Basics' },
+  { id: 'q3', text: 'Sequence: 3, 6, 12, 24, ... next value?', options: ['30', '36', '42', '48'], correctIndex: 3, topic: 'Patterns and Sequences' },
+  {
+    id: 'q4',
+    text: 'A car accelerates uniformly from rest to 20 m/s in 4 s. What is its acceleration?',
+    options: ['4 m/s²', '5 m/s²', '16 m/s²', '80 m/s²'],
+    correctIndex: 1,
+    topic: 'Kinematics',
+  },
+  { id: 'q5', text: 'What is the derivative of x³?', options: ['x²', '3x', '3x²', 'x⁴/4'], correctIndex: 2, topic: 'Calculus Foundations' },
+];
+
+/** Defaults when never saved; drops questions without text, two options, or a valid answer. */
+export function normalizeQuestions(raw: unknown): AssessmentQuestion[] {
+  if (!Array.isArray(raw)) return DEFAULT_ASSESSMENT_QUESTIONS;
+  return (raw as Partial<AssessmentQuestion>[])
+    .filter((q) => q && typeof q.id === 'string' && typeof q.text === 'string' && Array.isArray(q.options))
+    .map((q) => ({
+      id: q.id!,
+      text: q.text!.trim(),
+      options: q.options!.map((o) => String(o).trim()).filter(Boolean),
+      correctIndex: Number(q.correctIndex),
+      topic: typeof q.topic === 'string' ? q.topic.trim() : '',
+    }))
+    .filter((q) => q.text && q.options.length >= 2 && Number.isInteger(q.correctIndex) && q.correctIndex >= 0 && q.correctIndex < q.options.length);
 }

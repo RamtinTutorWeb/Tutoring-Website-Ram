@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useContent } from "../api/ContentProvider";
+import { useResources } from "../api/hooks";
 import AdminEditLink from "../components/AdminEditLink";
 import LoadState from "../components/LoadState";
 import Prose from "../components/Prose";
+import { ResourceCard } from "../components/ResourceLibrary";
 import ReviewForm from "../components/ReviewForm";
 import StarRating from "../components/StarRating";
 import VideoEmbed from "../components/VideoEmbed";
@@ -13,12 +15,15 @@ export default function HomePage() {
   const [faqOpenMap, setFaqOpenMap] = useState<Record<string, boolean>>({});
   const home = content.pages.home;
   const approvedReviews = content.reviews.filter((review) => review.status !== "pending");
+  const resources = useResources();
+  const publicResources = (resources.data ?? []).filter((resource) => resource.visibility === "public");
+  const showcase = [...publicResources.filter((r) => r.featured), ...publicResources.filter((r) => !r.featured)].slice(0, 3);
 
   return (
     <section data-page="home" className="page">
       <div className="hero">
         <p className="hero-kicker">{home.kicker}</p>
-        <h2>{home.title}</h2>
+        <h1>{home.title}</h1>
         <p className="lead">{home.subtitle}</p>
         <div className="row">
           <Link className="button-link primary" to="/contact">Request a session</Link>
@@ -53,6 +58,18 @@ export default function HomePage() {
           <VideoEmbed url={home.videoUrl} title="Sample lesson" />
         </div>
       </section>
+
+      {showcase.length ? (
+        <section className="section" id="free-resources">
+          <div className="section-head">
+            <h3>Free resources</h3>
+            <Link to="/resources">Browse the library →</Link>
+          </div>
+          <div className="resource-grid">
+            {showcase.map((resource) => <ResourceCard key={resource.id} resource={resource} onOpen={resources.open} />)}
+          </div>
+        </section>
+      ) : null}
 
       <section className="section">
         <div className="section-head">

@@ -63,12 +63,13 @@ All access goes through the backend; see `docs/ARCHITECTURE.md` for who can do w
 | Table | Purpose |
 |---|---|
 | `profiles` | One row per Clerk user (`id` = Clerk user id). `role` mirrors Clerk `publicMetadata.role`. Written by the Clerk webhook and `GET /me`. |
-| `site_settings` | JSON blobs by key: `content` (courses, examPrepTracks, faq), `selectable_options` (dropdowns). `session_settings` is legacy and unused. |
+| `site_settings` | JSON blobs by key: `content` (about, courses, examPrepTracks, faq), `selectable_options` (dropdowns). `session_settings` is legacy and unused. |
 | `reviews` | Testimonials. `status` `pending` (student-submitted) or `approved` (public). `student_id` is the author, null for legacy/admin-seeded rows. |
 | `session_requests` | Contact-form requests. `student_id` is null for guests. `status`: `new`, `accepted`, `declined`, `scheduled`, `closed`. |
 | `bookings` | Mirror of Calendly invitees, unique on `calendly_invitee_uri` (a group event has one `calendly_event_uri`, many invitees). Linked to a request via `utm_content`. `status`: `scheduled`, `canceled`. |
 | `assessments` | Placement answers with `score`, `total`, `recommendation`. |
 | `learner_courses` | A student's courses with progress (`registered`, `in-progress`, `passed`). Unique per student and course. |
+| `resources` | Resource library: files (Storage bucket `resources`, private) and links/videos, with `visibility` public/students/private and `student_ids` for private shares. |
 | `webhook_events` | Idempotency ledger keyed on `(provider, event_id)` for Clerk and Calendly. |
 
 ## Adding a migration

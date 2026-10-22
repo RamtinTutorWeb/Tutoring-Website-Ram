@@ -21,6 +21,7 @@ export default function Footer() {
         </div>
         <nav aria-label="Footer">
           <Link to="/about">About</Link>
+          <Link to="/resources">Resources</Link>
           <Link to="/policy">Policy</Link>
           <Link to="/contact">Contact</Link>
           <Link to="/assessment">Free assessment</Link>

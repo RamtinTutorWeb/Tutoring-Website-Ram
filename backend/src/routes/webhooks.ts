@@ -150,6 +150,8 @@ interface CalendlyInvitee {
   tracking?: { utm_content?: string | null } | null;
   cancellation?: { reason?: string | null } | null;
   scheduled_event?: { name?: string | null; start_time?: string; end_time?: string } | null;
+  cancel_url?: string | null;
+  reschedule_url?: string | null;
   /** On invitee.canceled: true when the cancel is half of a reschedule. */
   rescheduled?: boolean | null;
   /** On the invitee.created half of a reschedule: the invitee it replaces. */
@@ -170,6 +172,12 @@ function isCalendlyBody(value: unknown): value is CalendlyBody {
     typeof body.payload?.uri === 'string' &&
     typeof body.payload.event === 'string'
   );
+}
+
+/** Only https Calendly links are kept: they are rendered as hrefs in the dashboard. */
+function calendlyLink(value: string | null | undefined): string | null {
+  const url = value?.trim();
+  return url && /^https:\/\/([a-z0-9-]+\.)*calendly\.com\//i.test(url) ? url : null;
 }
 
 async function applyInviteeEvent(body: CalendlyBody, status: BookingStatus): Promise<void> {
@@ -206,6 +214,8 @@ async function applyInviteeEvent(body: CalendlyBody, status: BookingStatus): Pro
     endAt: scheduled.end_time ?? null,
     status,
     cancelReason: status === 'canceled' ? invitee.cancellation?.reason?.trim() || null : null,
+    cancelUrl: calendlyLink(invitee.cancel_url),
+    rescheduleUrl: calendlyLink(invitee.reschedule_url),
     studentId,
     requestId: request?.id ?? null,
     raw: body,

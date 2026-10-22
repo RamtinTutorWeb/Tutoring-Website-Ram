@@ -8,7 +8,7 @@ const app = createApp();
 describe('auth gating', () => {
   it('serves /health and /content without auth', async () => {
     const health = await request(app).get('/health').expect(200);
-    expect(health.body).toEqual({ ok: true, configured: { clerk: true, supabase: true, resend: true, calendly: true } });
+    expect(health.body).toEqual({ ok: true, configured: { clerk: true, supabase: true, resend: true, calendly: true, turnstile: false } });
     const content = await request(app).get('/content').expect(200);
     expect(content.body.selectableOptions.contactMethods).toEqual(['Email', 'Phone', 'WhatsApp']);
   });

@@ -12,6 +12,8 @@ import ExamPrepPage from "../pages/ExamPrepPage";
 import HomePage from "../pages/HomePage";
 import PolicyPage from "../pages/PolicyPage";
 import ProfilePage from "../pages/ProfilePage";
+import ResourcesPage from "../pages/ResourcesPage";
+import { StudentDetailPage } from "../pages/admin/StudentDetailPage";
 
 export default function AppRouter() {
   return (
@@ -23,13 +25,17 @@ export default function AppRouter() {
       <Route path="/assessment" element={<AssessmentPage />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/book" element={<BookPage />} />
+      <Route path="/resources" element={<ResourcesPage />} />
+      <Route path="/resources" element={<ResourcesPage />} />
       <Route path="/policy" element={<PolicyPage />} />
       <Route path="/sign-in/*" element={<SignInPage />} />
       <Route path="/sign-up/*" element={<SignUpPage />} />
       <Route path="/login" element={<Navigate to="/sign-in" replace />} />
       <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+      <Route path="/admin/students/:id" element={<RequireAdmin><StudentDetailPage /></RequireAdmin>} />
       <Route path="/admin/:tab?" element={<RequireAdmin><AdminPage /></RequireAdmin>} />
+      <Route path="/students" element={<Navigate to="/admin/students" replace />} />
       <Route path="/settings" element={<Navigate to="/admin" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -45,6 +45,10 @@ function readEnv() {
     },
     publicApiUrl: opt('PUBLIC_API_URL') ? stripSlash(opt('PUBLIC_API_URL')!) : undefined,
     adminApiToken: opt('ADMIN_API_TOKEN'),
+    /** Cloudflare Turnstile; unset = the contact form is not bot-checked. */
+    turnstileSecretKey: opt('TURNSTILE_SECRET_KEY'),
+    /** Local dev sign-in without Clerk; see devAuthEnabled(). */
+    devAuth: opt('DEV_AUTH') === '1',
   };
 }
 
@@ -55,6 +59,7 @@ export interface Configured {
   supabase: boolean;
   resend: boolean;
   calendly: boolean;
+  turnstile: boolean;
 }
 
 /** Which integrations have their required variables set. Booleans only. */
@@ -64,7 +69,23 @@ export function configured(): Configured {
     supabase: Boolean(env.supabase.url && env.supabase.serviceRoleKey),
     resend: Boolean(env.resend.apiKey && env.resend.mailFrom),
     calendly: Boolean(env.calendly.webhookSigningKey),
+    turnstile: Boolean(env.turnstileSecretKey),
   };
+}
+
+/**
+ * Local-only sign-in (`Authorization: Bearer dev:user_dev_<name>`) so the app can be
+ * exercised end to end without Clerk keys. Every condition must hold: DEV_AUTH=1,
+ * Clerk NOT configured, not production, and Supabase on localhost, so it can never
+ * be active against a real deployment.
+ */
+export function devAuthEnabled(): boolean {
+  if (!env.devAuth || env.isProduction || configured().clerk || !env.supabase.url) return false;
+  try {
+    return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(env.supabase.url).hostname);
+  } catch {
+    return false;
+  }
 }
 
 /** Origin the frontend is served from, for links in emails. */

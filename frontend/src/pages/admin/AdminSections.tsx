@@ -205,7 +205,12 @@ export function AdminStudents() {
           <div className="list">
             {allUsers.map((user) => (
               <div className="list-item" key={user.id}>
-                <p><strong>{user.fullName || user.email}</strong> {user.role === "admin" ? <span className="role-pill">Admin</span> : null}</p>
+                <p>
+                  {user.role === "student"
+                    ? <Link to={`/admin/students/${encodeURIComponent(user.id)}`}><strong>{user.fullName || user.email}</strong></Link>
+                    : <strong>{user.fullName || user.email}</strong>}{" "}
+                  {user.role === "admin" ? <span className="role-pill">Admin</span> : null}
+                </p>
                 <p className="muted">{user.email}{user.phone ? ` · ${user.phone}` : ""} · Joined {formatDate(user.createdAt)}</p>
               </div>
             ))}

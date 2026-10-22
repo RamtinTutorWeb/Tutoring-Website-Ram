@@ -135,3 +135,34 @@ export async function sendRequestAcceptedEmail(request: SessionRequest): Promise
     ...(env.adminEmail ? { replyTo: env.adminEmail } : {}),
   });
 }
+
+/** A private resource was shared with a student -> that student, with a link to their dashboard. */
+export async function sendResourceSharedEmail(
+  to: { email: string; fullName: string | null },
+  resource: { title: string; description: string },
+): Promise<boolean> {
+  const link = `${frontendBaseUrl()}/dashboard#resources`;
+  const greeting = to.fullName ? `Hi ${to.fullName},` : 'Hi,';
+  const html = layout(`
+<h2 style="margin:0 0 16px;font-size:20px">New study material for you</h2>
+<p>${escapeHtml(greeting)}</p>
+<p>Your tutor shared <strong>${escapeHtml(resource.title)}</strong> with you.</p>
+${resource.description ? `<p style="white-space:pre-wrap;color:#444">${escapeHtml(resource.description)}</p>` : ''}
+<p style="margin:24px 0"><a href="${escapeHtml(link)}" style="background:#1f1f1f;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;display:inline-block">Open your resources</a></p>`);
+  const text = [
+    greeting,
+    '',
+    `Your tutor shared "${resource.title}" with you.`,
+    ...(resource.description ? ['', resource.description] : []),
+    '',
+    `Open it here: ${link}`,
+  ].join('\n');
+
+  return sendMail({
+    to: to.email,
+    subject: `New study material: ${resource.title}`,
+    html,
+    text,
+    ...(env.adminEmail ? { replyTo: env.adminEmail } : {}),
+  });
+}

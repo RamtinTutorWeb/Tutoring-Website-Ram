@@ -10,10 +10,14 @@ import { bookingsRouter } from './routes/bookings.js';
 import { contentRouter } from './routes/content.js';
 import { healthRouter } from './routes/health.js';
 import { learnerCoursesRouter } from './routes/learnerCourses.js';
+import { mediaRouter } from './routes/media.js';
 import { meRouter } from './routes/me.js';
 import { requestsRouter } from './routes/requests.js';
+import { resourcesRouter } from './routes/resources.js';
 import { reviewsRouter } from './routes/reviews.js';
 import { webhooksRouter } from './routes/webhooks.js';
+
+const RAW_UPLOAD_PATHS = new Set(['/resources/files', '/media']);
 
 const LOCALHOST_RE = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
@@ -43,7 +47,9 @@ export function createApp(): express.Express {
   app.use('/webhooks', express.raw({ type: '*/*', limit: '1mb' }));
   app.use(webhooksRouter);
 
-  app.use(express.json({ limit: '200kb' }));
+  // File uploads are parsed as raw bytes by their route (after the admin check).
+  const json = express.json({ limit: '200kb' });
+  app.use((req, res, next) => (RAW_UPLOAD_PATHS.has(req.path) ? next() : json(req, res, next)));
   app.use(clerkAuth());
 
   app.use(contentRouter);
@@ -53,6 +59,8 @@ export function createApp(): express.Express {
   app.use(learnerCoursesRouter);
   app.use(assessmentsRouter);
   app.use(reviewsRouter);
+  app.use(resourcesRouter);
+  app.use(mediaRouter);
   app.use(adminRouter);
 
   app.use((_req, res) => {

@@ -224,3 +224,28 @@ describe('learner-course extensions used by the frontend', () => {
     await request(app).delete(`/learner-courses/${again.body.id}`).set(auth('user_admin')).expect(204);
   });
 });
+
+describe('POST /requests with Turnstile', () => {
+  it('requires a token Cloudflare accepts once TURNSTILE_SECRET_KEY is set', async () => {
+    const { env } = await import('../src/env.js');
+    const { vi } = await import('vitest');
+    env.turnstileSecretKey = 'ts-secret';
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    try {
+      await request(app).post('/requests').send({ name: 'Bot', email: 'bot@x.dev' }).expect(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ success: false })));
+      await request(app).post('/requests').send({ name: 'Bot', email: 'bot@x.dev', turnstileToken: 'bad' }).expect(400);
+
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ success: true })));
+      await request(app).post('/requests').send({ name: 'Jo', email: 'jo@x.dev', turnstileToken: 'good' }).expect(201);
+      const body = fetchMock.mock.calls.at(-1)![1]!.body as URLSearchParams;
+      expect(body.get('secret')).toBe('ts-secret');
+      expect(body.get('response')).toBe('good');
+    } finally {
+      env.turnstileSecretKey = undefined;
+      fetchMock.mockRestore();
+    }
+  });
+});

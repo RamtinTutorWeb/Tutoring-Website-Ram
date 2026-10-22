@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage } from "../../api/client";
 import { useContent, type ContentPatch } from "../../api/ContentProvider";
 import { useCreateReview, useReviewAdmin } from "../../api/hooks";
-import type { Course, Review, SelectableOptionKey, SiteContent } from "../../api/types";
+import type { AssessmentQuestion, Course, Review, SelectableOptionKey, SiteContent } from "../../api/types";
 import StarRating from "../../components/StarRating";
 import { uid } from "../../lib/id";
 
@@ -422,3 +422,92 @@ export function FaqEditor() {
     </Panel>
   );
 }
+
+const blankQuestion = (): AssessmentQuestion => ({ id: uid(), text: "", options: ["", ""], correctIndex: 0, topic: "" });
+
+/** The placement test on /assessment: questions, options, the right answer, and the topic a miss recommends. */
+export function AssessmentEditor() {
+  const { content, saving, run, setFeedback, feedbackLine } = useContentSave();
+  const [questions, setQuestions] = useState<AssessmentQuestion[]>(content.assessmentQuestions);
+  const edit = (id: string, patch: Partial<AssessmentQuestion>) =>
+    setQuestions((current) => current.map((q) => (q.id === id ? { ...q, ...patch } : q)));
+
+  function setOption(q: AssessmentQuestion, index: number, value: string) {
+    edit(q.id, { options: q.options.map((o, i) => (i === index ? value : o)) });
+  }
+
+  function removeOption(q: AssessmentQuestion, index: number) {
+    const options = q.options.filter((_, i) => i !== index);
+    const correctIndex = q.correctIndex === index ? 0 : q.correctIndex > index ? q.correctIndex - 1 : q.correctIndex;
+    edit(q.id, { options, correctIndex });
+  }
+
+  function move(index: number, delta: number) {
+    setQuestions((current) => {
+      const next = [...current];
+      const [item] = next.splice(index, 1);
+      next.splice(Math.max(0, Math.min(next.length, index + delta)), 0, item!);
+      return next;
+    });
+  }
+
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const cleaned = questions.map((q) => {
+      const kept = q.options.map((o, i) => ({ o: o.trim(), i })).filter((x) => x.o);
+      const correct = kept.findIndex((x) => x.i === q.correctIndex);
+      return { ...q, text: q.text.trim(), topic: q.topic.trim(), options: kept.map((x) => x.o), correctIndex: correct };
+    });
+    const broken = cleaned.findIndex((q) => !q.text || q.options.length < 2 || q.correctIndex < 0);
+    if (broken >= 0) {
+      setFeedback({ text: `Question ${broken + 1} needs text, at least two options, and a correct answer that isn't blank.`, error: true });
+      return;
+    }
+    void run({ assessmentQuestions: cleaned }, "Assessment saved.").then((ok) => { if (ok) setQuestions(cleaned); });
+  }
+
+  return (
+    <Panel title={`Placement assessment (${questions.length} questions)`}>
+      <p className="muted">Students see these on the Assessment page. A missed question recommends its topic as the place to start.</p>
+      <form onSubmit={handleSubmit}>
+        <div className="list">
+          {questions.map((q, qi) => (
+            <fieldset className="list-item question-edit" key={q.id}>
+              <legend>Question {qi + 1}</legend>
+              <label>Question<input value={q.text} onChange={(e) => edit(q.id, { text: e.target.value })} maxLength={1000} required /></label>
+              <div className="option-edit-list" role="radiogroup" aria-label={`Correct answer for question ${qi + 1}`}>
+                {q.options.map((option, oi) => (
+                  <div className="option-edit" key={oi}>
+                    <input
+                      type="radio"
+                      name={`correct-${q.id}`}
+                      aria-label={`Option ${oi + 1} is correct`}
+                      checked={q.correctIndex === oi}
+                      onChange={() => edit(q.id, { correctIndex: oi })}
+                    />
+                    <input aria-label={`Option ${oi + 1}`} value={option} onChange={(e) => setOption(q, oi, e.target.value)} maxLength={300} placeholder={`Option ${oi + 1}`} />
+                    {q.options.length > 2 ? <button type="button" className="danger" onClick={() => removeOption(q, oi)} aria-label={`Remove option ${oi + 1}`}>✕</button> : null}
+                  </div>
+                ))}
+              </div>
+              <p className="muted">Select the radio button next to the correct answer.</p>
+              <label>Topic to recommend when missed<input value={q.topic} onChange={(e) => edit(q.id, { topic: e.target.value })} maxLength={200} placeholder="e.g. Kinematics" /></label>
+              <div className="row">
+                {q.options.length < 8 ? <button type="button" onClick={() => edit(q.id, { options: [...q.options, ""] })}>Add option</button> : null}
+                <button type="button" disabled={qi === 0} onClick={() => move(qi, -1)}>Move up</button>
+                <button type="button" disabled={qi === questions.length - 1} onClick={() => move(qi, 1)}>Move down</button>
+                <button type="button" className="danger" onClick={() => setQuestions((current) => current.filter((x) => x.id !== q.id))}>Delete question</button>
+              </div>
+            </fieldset>
+          ))}
+        </div>
+        <div className="row">
+          {questions.length < 50 ? <button type="button" onClick={() => setQuestions((current) => [...current, blankQuestion()])}>Add question</button> : null}
+          <button className="primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save assessment"}</button>
+        </div>
+      </form>
+      {feedbackLine}
+    </Panel>
+  );
+}
+

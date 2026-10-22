@@ -1,6 +1,6 @@
 import { clerkMiddleware, createClerkClient, getAuth, type ClerkClient } from '@clerk/express';
 import type { Request, RequestHandler } from 'express';
-import { configured, env } from '../env.js';
+import { configured, devAuthEnabled, env } from '../env.js';
 import { ConfigError } from '../errors.js';
 import type { Role } from '../types.js';
 
@@ -32,6 +32,10 @@ function getClient(): ClerkClient {
  * every request is treated as signed out.
  */
 export function clerkAuth(): RequestHandler {
+  if (devAuthEnabled()) {
+    console.warn('DEV_AUTH is on: accepting local dev sign-ins (Bearer dev:user_dev_*). Never use this outside local dev.');
+    return (_req, _res, next) => next();
+  }
   if (!configured().clerk) {
     console.warn('Clerk is not configured: all authenticated routes will return 401');
     return (_req, _res, next) => next();
@@ -45,8 +49,25 @@ export function clerkAuth(): RequestHandler {
 
 /** Clerk user id of a valid session on this request, or null. */
 export function getSessionUserId(req: Request): string | null {
+  if (devAuthEnabled()) return DEV_TOKEN_RE.exec(req.get('authorization') ?? '')?.[1] ?? null;
   if (!configured().clerk) return null;
   return getAuth(req).userId ?? null;
+}
+
+const DEV_TOKEN_RE = /^Bearer dev:(user_dev_[a-z0-9_]{1,40})$/;
+
+/** Dev users: `user_dev_admin*` are admins, anything else a student. Matches supabase/seed.sql. */
+function devUser(userId: string): ClerkUserInfo {
+  const name = userId.replace(/^user_dev_/, '');
+  const isAdmin = name.startsWith('admin');
+  const label = name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return {
+    id: userId,
+    email: `${name.replace(/_/g, '.')}@local.test`,
+    fullName: `${label} User`,
+    phone: null,
+    role: isAdmin ? 'admin' : 'student',
+  };
 }
 
 /** `publicMetadata.role` is the role source of truth; anything but "admin" is a student. */
@@ -61,6 +82,7 @@ const cache = new Map<string, { user: ClerkUserInfo; expires: number }>();
 
 /** Fetches a Clerk user (email, name, phone, role), cached in memory for 60s. */
 export async function getClerkUser(userId: string): Promise<ClerkUserInfo> {
+  if (devAuthEnabled()) return devUser(userId);
   const hit = cache.get(userId);
   if (hit && hit.expires > Date.now()) return hit.user;
 

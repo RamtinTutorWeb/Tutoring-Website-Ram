@@ -3,9 +3,10 @@ import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import * as db from '../db.js';
 import { env } from '../env.js';
-import { notFound } from '../errors.js';
+import { HttpError, notFound } from '../errors.js';
 import { getClerkUser, getSessionUserId } from '../lib/clerk.js';
 import { sendNewRequestEmail, sendRequestAcceptedEmail } from '../lib/mail.js';
+import { verifyTurnstile } from '../lib/turnstile.js';
 import { ensureProfile, ownerFilter, requireAdmin, requireAuth, viewerOf } from '../middleware/auth.js';
 import { REQUEST_STATUSES } from '../types.js';
 import { uuidParam } from './params.js';
@@ -49,6 +50,8 @@ export const requestsRouter = Router();
 
 requestsRouter.post('/requests', createLimiter, async (req, res) => {
   const input = newRequestSchema.parse(req.body ?? {});
+  const token = (req.body as { turnstileToken?: unknown } | undefined)?.turnstileToken;
+  if (!(await verifyTurnstile(token, req.ip))) throw new HttpError(400, 'Please complete the human check and try again');
 
   // Auth is optional here: a signed-in student gets the request linked to them.
   let studentId: string | null = null;

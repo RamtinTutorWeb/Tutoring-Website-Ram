@@ -42,6 +42,22 @@ export const requireAdmin: RequestHandler[] = [
   },
 ];
 
+/**
+ * For routes where auth is optional: the viewer when a valid session is sent,
+ * otherwise null. A failed role lookup also yields null (the public view).
+ */
+export async function optionalViewer(req: Request): Promise<Viewer | null> {
+  const userId = getSessionUserId(req);
+  if (!userId) return null;
+  try {
+    const clerkUser = await getClerkUser(userId);
+    return { userId, role: clerkUser.role, clerkUser };
+  } catch (err) {
+    console.warn(`${req.method} ${req.path}: role lookup failed, serving public view:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 export function viewerOf(req: Request): Viewer {
   if (!req.viewer) throw unauthorized();
   return req.viewer;

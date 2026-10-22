@@ -6,7 +6,7 @@ import { useSession } from "../auth/session";
 
 export default function ProfilePage() {
   const { me, loading, error, refetch, update } = useMe();
-  const { signOut, openUserProfile } = useSession();
+  const { signOut, openUserProfile, mode } = useSession();
   const navigate = useNavigate();
   const [feedback, setFeedback] = useState({ text: "", error: false });
   const [saving, setSaving] = useState(false);
@@ -66,7 +66,7 @@ export default function ProfilePage() {
             <p>Change your email, password, or sign-in methods, or sign out.</p>
           </div>
           <div className="row">
-            <button className="profile-password-link" type="button" onClick={openUserProfile}>Manage Account</button>
+            {mode === "clerk" ? <button className="profile-password-link" type="button" onClick={openUserProfile}>Manage Account</button> : null}
             <button className="danger" type="button" onClick={() => void signOut().then(() => navigate("/"))}>Sign Out</button>
           </div>
         </div>

@@ -29,6 +29,9 @@ export const state = {
   assessments: [] as Assessment[],
   webhookEvents: new Set<string>(),
   reviews: [] as Array<Review & { studentId: string | null; status: ReviewStatus }>,
+  resources: [] as realDb.StoredResource[],
+  /** Storage bucket `resources`: path -> { body, contentType }. */
+  files: new Map<string, { body: Buffer; contentType: string }>(),
 };
 
 export const clerkUsers = new Map<string, ClerkUserInfo>();
@@ -42,6 +45,8 @@ export function resetState(): void {
   state.assessments.length = 0;
   state.webhookEvents.clear();
   state.reviews.length = 0;
+  state.resources.length = 0;
+  state.files.clear();
   clerkUsers.clear();
   clerkUsers.set('user_student', {
     id: 'user_student',
@@ -154,6 +159,8 @@ export const fakeDb: Db = {
       endAt: b.endAt,
       status: b.status,
       cancelReason: b.cancelReason,
+      cancelUrl: b.cancelUrl,
+      rescheduleUrl: b.rescheduleUrl,
     });
   }),
 
@@ -216,6 +223,51 @@ export const fakeDb: Db = {
     if (i < 0) return false;
     state.reviews.splice(i, 1);
     return true;
+  }),
+
+  listResources: vi.fn(async (scope) =>
+    state.resources
+      .filter((r) => {
+        if (scope === 'all') return true;
+        if (scope === 'public') return r.visibility === 'public';
+        return r.visibility !== 'private' || r.studentIds.includes(scope.studentId);
+      })
+      .map((r) => structuredClone(r)),
+  ),
+  getResource: vi.fn(async (id) => {
+    const row = state.resources.find((r) => r.id === id);
+    return row ? structuredClone(row) : null;
+  }),
+  createResource: vi.fn(async (r) => {
+    if (r.storagePath && state.resources.some((x) => x.storagePath === r.storagePath)) {
+      throw conflict('That file is already attached to another resource');
+    }
+    const row: realDb.StoredResource = { ...r, id: randomUUID(), createdAt: now() };
+    state.resources.unshift(row);
+    return structuredClone(row);
+  }),
+  updateResource: vi.fn(async (id, patch) => {
+    const row = state.resources.find((r) => r.id === id);
+    if (!row) return null;
+    Object.assign(row, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
+    return structuredClone(row);
+  }),
+  deleteResource: vi.fn(async (id) => {
+    const i = state.resources.findIndex((r) => r.id === id);
+    if (i < 0) return null;
+    return state.resources.splice(i, 1)[0]!;
+  }),
+  uploadResourceFile: vi.fn(async (path, body, contentType) => {
+    state.files.set(path, { body, contentType });
+  }),
+  signResourceFile: vi.fn(async (path, downloadName) => `https://storage.test/${path}?download=${encodeURIComponent(downloadName)}`),
+  removeResourceFile: vi.fn(async (path) => {
+    state.files.delete(path);
+  }),
+
+  uploadSiteMedia: vi.fn(async (path, body, contentType) => {
+    state.files.set(`site-media/${path}`, { body, contentType });
+    return `https://storage.test/public/site-media/${path}`;
   }),
 
   recordWebhookEvent: vi.fn(async (provider, eventId) => {

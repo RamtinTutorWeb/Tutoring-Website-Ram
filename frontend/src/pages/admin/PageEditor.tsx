@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { errorMessage } from "../../api/client";
 import { useContent } from "../../api/ContentProvider";
+import { useUploadMedia } from "../../api/hooks";
 import type { PageKey, SitePages, TextSection } from "../../api/types";
 import { uid } from "../../lib/id";
 import { Panel } from "./editors";
@@ -13,7 +14,8 @@ type TextField<K extends PageKey> = {
 export interface FieldSpec<K extends PageKey> {
   name: TextField<K>;
   label: string;
-  type?: "text" | "textarea" | "url" | "email" | "tel";
+  /** "image": a URL field plus an upload button (public site-media bucket). */
+  type?: "text" | "textarea" | "url" | "email" | "tel" | "image";
   rows?: number;
   hint?: string;
   placeholder?: string;
@@ -42,6 +44,8 @@ export function PageEditor<K extends PageKey>({
   const [draft, setDraft] = useState<SitePages[K]>(stored);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState({ text: "", error: false });
+  const uploadMedia = useUploadMedia();
+  const [uploading, setUploading] = useState(false);
 
   // Reset the draft whenever the saved version changes (initial load, after save, another tab).
   const storedJson = JSON.stringify(stored);
@@ -72,6 +76,24 @@ export function PageEditor<K extends PageKey>({
     setSections(next);
   }
 
+  async function handleUpload(name: string, file: File | undefined) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setFeedback({ text: "Images must be 5 MB or smaller.", error: true });
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadMedia(file);
+      setField(name, url);
+      setFeedback({ text: "Image uploaded. Save changes to publish it.", error: false });
+    } catch (err) {
+      setFeedback({ text: errorMessage(err, "Could not upload the image."), error: true });
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaving(true);
@@ -96,14 +118,37 @@ export function PageEditor<K extends PageKey>({
             placeholder: field.placeholder,
             onChange: (e: { target: { value: string } }) => setField(field.name, e.target.value)
           };
-          return (
-            <label key={field.name}>
+          const input = (
+            <label>
               {field.label}
               {field.hint ? <span className="hint">{field.hint}</span> : null}
               {field.type === "textarea"
                 ? <textarea rows={field.rows ?? 4} {...common} />
-                : <input type={field.type ?? "text"} {...common} />}
+                : <input type={field.type === "image" ? "url" : field.type ?? "text"} {...common} />}
             </label>
+          );
+          if (field.type !== "image") return <Fragment key={field.name}>{input}</Fragment>;
+          return (
+            <Fragment key={field.name}>
+              {input}
+              <div className="image-field">
+                {value ? <img src={value} alt="" className="image-field-preview" /> : null}
+                <label className="file-button">
+                  {uploading ? "Uploading..." : value ? "Replace image" : "Upload image"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                    aria-label={`Upload ${field.label.toLowerCase()}`}
+                    disabled={uploading}
+                    onChange={(e) => {
+                      void handleUpload(field.name, e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {value ? <button type="button" className="small" onClick={() => setField(field.name, "")}>Remove</button> : null}
+              </div>
+            </Fragment>
           );
         })}
 
@@ -139,7 +184,7 @@ export function PageEditor<K extends PageKey>({
         ) : null}
 
         <div className="save-bar">
-          <button className="primary" type="submit" disabled={saving || !dirty}>{saving ? "Saving..." : "Save changes"}</button>
+          <button className="primary" type="submit" disabled={saving || uploading || !dirty}>{saving ? "Saving..." : "Save changes"}</button>
           {dirty ? <button type="button" disabled={saving} onClick={() => setDraft(JSON.parse(storedJson) as SitePages[K])}>Discard</button> : null}
           {feedback.text
             ? <p className={`feedback ${feedback.error ? "error" : ""}`} role="status">{feedback.text}</p>

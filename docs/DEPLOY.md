@@ -9,7 +9,7 @@ Env var reference: [`ARCHITECTURE.md`](ARCHITECTURE.md#env-contract). Never put 
 supabase login
 supabase projects create tutorpro --org-id <org> --region us-east-1 --db-password '<save this>'
 supabase link --project-ref <ref>
-supabase db push                       # applies supabase/migrations/* (do NOT run seed.sql in prod)
+supabase db push                       # applies supabase/migrations/* incl. the `resources` Storage bucket (do NOT run seed.sql in prod)
 supabase projects api-keys --project-ref <ref>
 ```
 
@@ -39,7 +39,7 @@ Check: `curl https://<api>/health` → `configured` flags all `true` once every 
 ## 4. Vercel (frontend)
 
 Import the repo, **root directory = repo root** (`vercel.json` builds only the frontend workspace).
-Env (Production + Preview): `VITE_CLERK_PUBLISHABLE_KEY`, `VITE_API_URL` (= Railway origin), `VITE_CALENDLY_URL`.
+Env (Production + Preview): `VITE_CLERK_PUBLISHABLE_KEY`, `VITE_API_URL` (= Railway origin), `VITE_CALENDLY_URL`, `VITE_SITE_URL` (= the public origin, for link previews and the sitemap).
 Then set Railway `FRONTEND_URL` to the Vercel origin(s), comma-separated, and redeploy the API (CORS + Clerk authorized parties).
 Preview deployments get random `*.vercel.app` origins that are not in `FRONTEND_URL`, so their API calls are blocked by CORS. Test on production (or add a fixed preview alias to `FRONTEND_URL`).
 
@@ -61,13 +61,17 @@ Without a verified domain Resend only delivers to the account owner's address.
   curl -X POST https://<api>/admin/calendly/register-webhook -H "x-admin-token: $ADMIN_API_TOKEN"
   ```
 
+## 7b. Spam protection (optional)
+
+Cloudflare → Turnstile → Add widget for your domain(s). Site key → Vercel `VITE_TURNSTILE_SITE_KEY`, secret key → Railway `TURNSTILE_SECRET_KEY`. Set both, then redeploy both.
+
 ## 8. Custom domain
 
 - Vercel: add `<domain>` (and `www`). Railway: add `api.<domain>` as a custom domain.
-- Update `VITE_API_URL` (Vercel), `FRONTEND_URL` + `PUBLIC_API_URL` (Railway), redeploy both.
+- Update `VITE_API_URL` and `VITE_SITE_URL` (Vercel), `FRONTEND_URL` + `PUBLIC_API_URL` (Railway), redeploy both.
 - Clerk: create the **production instance**, add its DNS records, swap to `pk_live_`/`sk_live_` keys, re-add the webhook and Google OAuth credentials there.
 - Re-point the Calendly webhook: delete the old subscription, run step 7's curl again.
 
 ## Smoke test
 
-1. `GET /health` all true. 2. Home shows courses/reviews. 3. Contact form → tutor gets an email. 4. Sign up → `profiles` row exists. 5. Admin accepts the request → student gets the `/book?request=…` email. 6. Book on Calendly → dashboard shows the booking; cancel → it flips to canceled.
+1. `GET /health` all true. 2. Home shows courses/reviews; edits under /admin (Home page, About me) show on the site. 2b. /admin/resources: upload a file, share it privately with a student -> they get an email and can download it from their dashboard. 3. Contact form → tutor gets an email. 4. Sign up → `profiles` row exists. 5. Admin accepts the request → student gets the `/book?request=…` email. 6. Book on Calendly → dashboard shows the booking; cancel → it flips to canceled.

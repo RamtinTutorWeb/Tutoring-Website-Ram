@@ -1,8 +1,8 @@
 import { ClerkProvider, useAuth, useClerk, useUser } from "@clerk/react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { TokenGetter } from "../api/client";
-import { clerkPublishableKey, isClerkConfigured } from "../config";
+import { clerkPublishableKey, isClerkConfigured, isDevAuth } from "../config";
 
 /**
  * App-facing view of the Clerk session. Components read this instead of Clerk hooks so public
@@ -12,6 +12,10 @@ import { clerkPublishableKey, isClerkConfigured } from "../config";
 export interface Session {
   /** False when no Clerk publishable key is configured; auth routes show a config error. */
   configured: boolean;
+  /** "dev" = local dev sign-in (see config.isDevAuth); Clerk components must not render then. */
+  mode: "clerk" | "dev" | "none";
+  /** Dev mode only: sign in as a seeded dev user (`user_dev_admin`, `user_dev_student`). */
+  devSignIn?: (userId: string) => void;
   isLoaded: boolean;
   isSignedIn: boolean;
   userId: string | null;
@@ -24,6 +28,7 @@ export interface Session {
 
 const unconfiguredSession: Session = {
   configured: false,
+  mode: "none",
   isLoaded: true,
   isSignedIn: false,
   userId: null,
@@ -43,6 +48,9 @@ export function useSession(): Session {
 /** Must render inside <BrowserRouter> so Clerk navigates with React Router. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+
+  // `import.meta.env.DEV` inline so production builds drop the dev provider entirely.
+  if (import.meta.env.DEV && isDevAuth) return <DevSessionProvider>{children}</DevSessionProvider>;
 
   if (!isClerkConfigured) {
     return <SessionContext.Provider value={unconfiguredSession}>{children}</SessionContext.Provider>;
@@ -75,6 +83,7 @@ function ClerkSessionBridge({ children }: { children: ReactNode }) {
   const value = useMemo<Session>(
     () => ({
       configured: true,
+      mode: "clerk" as const,
       isLoaded,
       isSignedIn: isSignedIn === true,
       userId: userId ?? null,
@@ -86,6 +95,49 @@ function ClerkSessionBridge({ children }: { children: ReactNode }) {
     }),
     [isLoaded, isSignedIn, userId, user, stableGetToken, clerk]
   );
+
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+}
+
+const DEV_USER_KEY = "tutorpro.devUser";
+
+function readDevUser(): string | null {
+  try {
+    return localStorage.getItem(DEV_USER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Local dev sign-in: the "token" is `dev:<userId>`, which only a DEV_AUTH backend accepts. */
+function DevSessionProvider({ children }: { children: ReactNode }) {
+  const [userId, setUserId] = useState<string | null>(readDevUser);
+
+  const persist = useCallback((next: string | null) => {
+    try {
+      if (next) localStorage.setItem(DEV_USER_KEY, next);
+      else localStorage.removeItem(DEV_USER_KEY);
+    } catch {
+      // Private mode: the dev session just won't survive a reload.
+    }
+    setUserId(next);
+  }, []);
+
+  const getToken = useCallback<TokenGetter>(async () => (userId ? `dev:${userId}` : null), [userId]);
+
+  const value = useMemo<Session>(() => ({
+    configured: true,
+    mode: "dev",
+    isLoaded: true,
+    isSignedIn: userId !== null,
+    userId,
+    fullName: null,
+    email: null,
+    getToken,
+    signOut: async () => persist(null),
+    openUserProfile: () => undefined,
+    devSignIn: (next: string) => persist(next)
+  }), [userId, getToken, persist]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

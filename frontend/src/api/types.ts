@@ -70,7 +70,17 @@ export interface SitePages {
 
 export type PageKey = keyof SitePages;
 
+/** A placement-assessment question; a miss recommends `topic`. */
+export interface AssessmentQuestion {
+  id: string;
+  text: string;
+  options: string[];
+  correctIndex: number;
+  topic: string;
+}
+
 export interface SiteContent {
+  assessmentQuestions: AssessmentQuestion[];
   courses: Course[];
   examPrepTracks: Course[];
   reviews: Review[];
@@ -96,9 +106,11 @@ export interface NewRequest {
   earliestDate?: string;
   message?: string;
   consultation?: boolean;
+  /** Cloudflare Turnstile token when the bot check is enabled. Not stored. */
+  turnstileToken?: string;
 }
 
-export interface SessionRequest extends Required<Omit<NewRequest, "isUrgent" | "consultation">> {
+export interface SessionRequest extends Required<Omit<NewRequest, "isUrgent" | "consultation" | "turnstileToken">> {
   id: string;
   studentId: string | null;
   isUrgent: boolean;
@@ -118,6 +130,8 @@ export interface Booking {
   endAt: string | null;
   status: "scheduled" | "canceled";
   cancelReason: string | null;
+  cancelUrl: string | null;
+  rescheduleUrl: string | null;
 }
 
 export type CourseStatus = "registered" | "in-progress" | "passed";
@@ -155,4 +169,50 @@ export interface NewReview {
   text: string;
   /** Defaults to the profile's fullName on the backend. */
   name?: string;
+}
+
+export type ResourceKind = "file" | "link" | "video";
+export type ResourceVisibility = "public" | "students" | "private";
+
+export interface Resource {
+  id: string;
+  title: string;
+  description: string;
+  kind: ResourceKind;
+  /** Link/video target; null for files (use GET /resources/:id/download). */
+  url: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  subject: string;
+  courseId: string | null;
+  visibility: ResourceVisibility;
+  /** Admin only: who a private resource is shared with. */
+  studentIds: string[];
+  featured: boolean;
+  createdAt: string;
+}
+
+/** POST /resources/files result: spread into a file resource's create/patch body. */
+export interface UploadedFile {
+  storagePath: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
+export interface ResourceInput {
+  title: string;
+  description: string;
+  kind: ResourceKind;
+  url?: string | null;
+  storagePath?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  subject: string;
+  courseId: string | null;
+  visibility: ResourceVisibility;
+  studentIds: string[];
+  featured: boolean;
 }

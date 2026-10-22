@@ -9,7 +9,7 @@ function navClass({ isActive }: { isActive: boolean }): string {
 }
 
 export default function Header() {
-  const { configured, isSignedIn } = useSession();
+  const { mode, isSignedIn, signOut } = useSession();
   const { isAdmin } = useMe();
   const [open, setOpen] = useState(false);
   const location = useLocation();
@@ -32,19 +32,23 @@ export default function Header() {
         >
           {open ? "Close" : "Menu"}
         </button>
-        <nav className={open ? "open" : ""}>
+        <nav className={open ? "open" : ""} aria-label="Main">
           <ul className="nav-links" id="main-nav">
             <li><NavLink to="/" end className={navClass}>Home</NavLink></li>
             <li><NavLink to="/about" className={navClass}>About</NavLink></li>
             <li><NavLink to="/courses" className={navClass}>Courses</NavLink></li>
             <li><NavLink to="/exam-prep" className={navClass}>Exam Prep</NavLink></li>
+            <li><NavLink to="/resources" className={navClass}>Resources</NavLink></li>
             <li><NavLink to="/policy" className={navClass}>Policy</NavLink></li>
             <li><NavLink to="/contact" className={navClass}>Contact</NavLink></li>
             {isAdmin ? <li><NavLink to="/admin" className={navClass}>Admin</NavLink></li> : null}
             {isSignedIn && !isAdmin ? <li><NavLink to="/dashboard" className={navClass}>Dashboard</NavLink></li> : null}
             {!isSignedIn ? <li><NavLink to="/sign-in" className={navClass}>Sign In</NavLink></li> : null}
             <li className="nav-cta"><Link className="button-link primary" to="/book">Book a session</Link></li>
-            {configured && isSignedIn ? <li className="nav-user"><UserButton /></li> : null}
+            {mode === "clerk" && isSignedIn ? <li className="nav-user"><UserButton /></li> : null}
+            {mode === "dev" && isSignedIn ? (
+              <li className="nav-user"><button type="button" className="nav-signout" onClick={() => void signOut()}>Sign out</button></li>
+            ) : null}
           </ul>
         </nav>
       </div>

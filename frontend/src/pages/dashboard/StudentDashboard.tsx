@@ -2,12 +2,13 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { errorMessage } from "../../api/client";
 import { useContent } from "../../api/ContentProvider";
-import { useAssessments, useBookings, useLearnerCourses, useRequests } from "../../api/hooks";
-import type { CourseStatus } from "../../api/types";
+import { useAssessments, useBookings, useLearnerCourses, useRequests, useResources } from "../../api/hooks";
+import type { Booking, CourseStatus } from "../../api/types";
 import LoadState from "../../components/LoadState";
+import ResourceLibrary from "../../components/ResourceLibrary";
 import ReviewForm from "../../components/ReviewForm";
 import StatCard from "../../components/StatCard";
-import { formatDate, formatDateTime } from "../../lib/format";
+import { formatDate, formatDateTime, formatSessionTime } from "../../lib/format";
 import { courseLookup, courseStatusLabels, requestStatusLabels } from "./labels";
 
 export default function StudentDashboard() {
@@ -16,6 +17,7 @@ export default function StudentDashboard() {
   const bookings = useBookings();
   const learnerCourses = useLearnerCourses();
   const assessments = useAssessments();
+  const resources = useResources();
   const [courseFeedback, setCourseFeedback] = useState({ text: "", error: false });
   const [registering, setRegistering] = useState(false);
   const [droppingId, setDroppingId] = useState("");
@@ -30,7 +32,13 @@ export default function StudentDashboard() {
     { registered: 0, "in-progress": 0, passed: 0 }
   );
   const myRequests = requests.data ?? [];
-  const myBookings = [...(bookings.data ?? [])].sort((a, b) => Date.parse(a.startAt ?? "") - Date.parse(b.startAt ?? ""));
+  const readyToBook = myRequests.filter((request) => request.status === "accepted");
+  const now = Date.now();
+  const sortedBookings = [...(bookings.data ?? [])].sort((a, b) => Date.parse(a.startAt ?? "") - Date.parse(b.startAt ?? ""));
+  const upcoming = sortedBookings.filter((b) => b.status === "scheduled" && Date.parse(b.endAt ?? b.startAt ?? "") >= now);
+  const past = sortedBookings.filter((b) => !upcoming.includes(b)).reverse();
+  // Shared-with-me first, then the rest of the library.
+  const myResources = [...(resources.data ?? [])].sort((a, b) => Number(b.visibility === "private") - Number(a.visibility === "private"));
   const myAssessments = [...(assessments.data ?? [])].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 
   async function handleRegister(e: FormEvent<HTMLFormElement>) {
@@ -69,8 +77,22 @@ export default function StudentDashboard() {
         <StatCard label="Registered" value={statusCounts.registered} />
         <StatCard label="In Progress" value={statusCounts["in-progress"]} />
         <StatCard label="Passed" value={statusCounts.passed} />
-        <StatCard label="Requests" value={myRequests.length} />
+        <StatCard label="Upcoming Sessions" value={upcoming.length} />
       </div>
+
+      {readyToBook.map((request) => (
+        <div className="next-session ready-to-book" role="status" key={request.id}>
+          <div>
+            <p className="eyebrow">Request accepted</p>
+            <h3>{request.subject || request.serviceType || "Your tutoring request"} · pick a time</h3>
+            <p className="muted">Your tutor accepted your request. Choose a slot that suits you.</p>
+          </div>
+          <div className="row">
+            <Link className="button-link primary" to={`/book?request=${encodeURIComponent(request.id)}`}>Book now</Link>
+          </div>
+        </div>
+      ))}
+      {upcoming[0] ? <NextSession booking={upcoming[0]} /> : null}
 
       <div className="card" id="student-request-history">
         <div className="request-card-head">
@@ -100,20 +122,39 @@ export default function StudentDashboard() {
       </div>
 
       <div className="card" id="student-bookings">
-        <h3>My Sessions</h3>
+        <div className="request-card-head">
+          <h3>My Sessions</h3>
+          <Link className="button-link" to="/book">Book a session</Link>
+        </div>
         <LoadState loading={bookings.loading} error={bookings.error} onRetry={() => void bookings.refetch()} />
         <div className="list">
-          {myBookings.length ? myBookings.map((booking) => (
-            <div className="list-item" key={booking.id}>
-              <p><strong>{booking.eventTypeName || "Tutoring session"}</strong> | {formatDateTime(booking.startAt)}</p>
-              <p className="muted">
-                {booking.status === "canceled" ? `Canceled${booking.cancelReason ? `: ${booking.cancelReason}` : ""}` : "Scheduled"}
-              </p>
-            </div>
-          )) : !bookings.loading && !bookings.error ? (
-            <p className="muted">No sessions booked yet. Once a request is accepted, use Book now to pick a time.</p>
+          {upcoming.map((booking) => <SessionRow booking={booking} key={booking.id} />)}
+          {!bookings.loading && !bookings.error && !upcoming.length ? (
+            <p className="muted">No upcoming sessions. Once a request is accepted, use Book now to pick a time.</p>
           ) : null}
         </div>
+        {past.length ? (
+          <details className="past-sessions">
+            <summary>Past and canceled ({past.length})</summary>
+            <div className="list">{past.map((booking) => <SessionRow booking={booking} key={booking.id} />)}</div>
+          </details>
+        ) : null}
+      </div>
+
+      <div className="card" id="resources">
+        <div className="request-card-head">
+          <h3>My Resources</h3>
+          <Link className="button-link" to="/resources">Full library</Link>
+        </div>
+        <LoadState loading={resources.loading} error={resources.error} onRetry={() => void resources.refetch()} />
+        {resources.data ? (
+          <ResourceLibrary
+            resources={myResources}
+            courses={catalog}
+            onOpen={resources.open}
+            emptyText="Your tutor hasn't shared any material yet. Notes and practice sets will appear here."
+          />
+        ) : null}
       </div>
 
       <details className="card courses-overview" open>
@@ -174,6 +215,44 @@ export default function StudentDashboard() {
       </div>
 
       <ReviewForm />
+    </div>
+  );
+}
+
+function NextSession({ booking }: { booking: Booking }) {
+  return (
+    <div className="next-session" role="status">
+      <div>
+        <p className="eyebrow">Next session</p>
+        <h3>{formatSessionTime(booking.startAt)}</h3>
+        <p className="muted">{booking.eventTypeName || "Tutoring session"} · the joining link is in your Calendly confirmation email.</p>
+      </div>
+      <SessionLinks booking={booking} />
+    </div>
+  );
+}
+
+function SessionLinks({ booking }: { booking: Booking }) {
+  const ended = Date.parse(booking.endAt ?? booking.startAt ?? "") < Date.now();
+  if (booking.status !== "scheduled" || ended || (!booking.rescheduleUrl && !booking.cancelUrl)) return null;
+  return (
+    <div className="row">
+      {booking.rescheduleUrl ? <a className="button-link" href={booking.rescheduleUrl} target="_blank" rel="noreferrer">Reschedule</a> : null}
+      {booking.cancelUrl ? <a className="button-link danger" href={booking.cancelUrl} target="_blank" rel="noreferrer">Cancel</a> : null}
+    </div>
+  );
+}
+
+function SessionRow({ booking }: { booking: Booking }) {
+  return (
+    <div className={`list-item session-row ${booking.status === "canceled" ? "is-canceled" : ""}`}>
+      <div>
+        <p><strong>{booking.eventTypeName || "Tutoring session"}</strong> · {formatSessionTime(booking.startAt)}</p>
+        <p className="muted">
+          {booking.status === "canceled" ? `Canceled${booking.cancelReason ? `: ${booking.cancelReason}` : ""}` : "Scheduled"}
+        </p>
+      </div>
+      <SessionLinks booking={booking} />
     </div>
   );
 }

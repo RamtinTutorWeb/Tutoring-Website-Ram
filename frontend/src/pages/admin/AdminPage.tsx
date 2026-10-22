@@ -3,9 +3,10 @@ import { Navigate, NavLink, useParams } from "react-router-dom";
 import { useContent } from "../../api/ContentProvider";
 import { useMe } from "../../api/MeProvider";
 import LoadState from "../../components/LoadState";
+import ResourceManager from "../../components/ResourceManager";
 import DashboardHeader from "../dashboard/DashboardHeader";
 import { AdminOverview, AdminStudents } from "./AdminSections";
-import { CourseCatalogEditor, ExamTrackEditor, FaqEditor, OptionsEditor, ReviewsEditor } from "./editors";
+import { AssessmentEditor, CourseCatalogEditor, ExamTrackEditor, FaqEditor, OptionsEditor, ReviewsEditor } from "./editors";
 import { PageEditor } from "./PageEditor";
 
 interface Tab {
@@ -33,6 +34,14 @@ const tabs: Tab[] = [
     title: "Students",
     description: "Student accounts and course progress.",
     render: () => <AdminStudents />
+  },
+  {
+    id: "resources",
+    label: "Resources",
+    group: "Manage",
+    title: "Resources",
+    description: "Upload worksheets and notes, or share links and videos. Public ones appear on the site as free samples; private ones go to the students you pick.",
+    render: () => <ResourceManager />
   },
   {
     id: "home",
@@ -77,7 +86,7 @@ const tabs: Tab[] = [
         fields={[
           { name: "title", label: "Page title" },
           { name: "intro", label: "Introduction", type: "textarea", rows: 3 },
-          { name: "photoUrl", label: "Photo link", type: "url", placeholder: "https://...", hint: "Optional. A link to a photo of you (https)." }
+          { name: "photoUrl", label: "Photo", type: "image", placeholder: "https://...", hint: "Optional. Upload a photo of you, or paste a link (https)." }
         ]}
         sectionsLabel="Sections"
       />
@@ -121,6 +130,14 @@ const tabs: Tab[] = [
         />
       </>
     )
+  },
+  {
+    id: "assessment",
+    label: "Assessment",
+    group: "Website",
+    title: "Placement assessment",
+    description: "The free placement test on the Assessment page. Students' results show on their student record.",
+    render: () => <AssessmentEditor />
   },
   {
     id: "reviews",

@@ -1,6 +1,6 @@
 # TutorPro
 
-Website and booking system for a private math and physics tutoring practice (university, IB, AP, SAT, A-Level). Public pages market the practice; students request sessions, take a placement assessment and book through Calendly; the tutor runs requests, bookings, student courses and site content from an admin dashboard.
+Website and booking system for a private math and physics tutoring practice (university, IB, AP, SAT, A-Level). The public site markets the practice (editable tutor profile, courses, free sample resources, reviews); students request sessions, take a placement assessment, book through Calendly and get study material in their dashboard; the tutor runs requests, bookings, student courses, the resource library and site content from an admin dashboard.
 
 ## Stack
 
@@ -12,6 +12,7 @@ Website and booking system for a private math and physics tutoring practice (uni
 | Auth | Clerk | `frontend/src/auth/`, `backend/src/middleware/auth.ts` |
 | Booking | Calendly | `frontend/src/pages/Book*`, `backend/src/routes/webhooks.ts` |
 | Email | Resend | `backend/src/lib/mail.ts` |
+| Resource files | Supabase Storage (private bucket `resources`) | `backend/src/routes/resources.ts` |
 
 The browser only talks to the API; only the API talks to Supabase. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the HTTP contract and env vars, and [`docs/DEPLOY.md`](docs/DEPLOY.md) for setting up the accounts.
 
@@ -19,9 +20,9 @@ The browser only talks to the API; only the API talks to Supabase. See [`docs/AR
 
 | Role | Can |
 |---|---|
-| Visitor | Browse, send a contact/session request, take the assessment (unsaved). |
-| Student | Everything above, plus: saved assessments, own requests and bookings, register/drop courses, leave reviews. |
-| Admin | Accept/decline requests, see all bookings and users, assign courses and set progress, approve reviews, edit courses, exam tracks, FAQ and dropdown options. |
+| Visitor | Browse, open public resources, send a contact/session request, take the assessment (unsaved). |
+| Student | Everything above, plus: students-only and privately shared resources, saved assessments, own requests and bookings (reschedule/cancel links), register/drop courses, leave reviews. |
+| Admin | Accept/decline requests, see all bookings, a full record per student (requests, sessions, courses, assessments, shared material), upload/share resources, assign courses and set progress, approve reviews, edit the tutor profile and photo, assessment questions, courses, exam tracks, FAQ, policies and dropdown options. |
 
 Admin = Clerk user with public metadata `{ "role": "admin" }`.
 
@@ -39,6 +40,25 @@ npm run dev:frontend                            # http://localhost:5173
 ```
 
 Resend and Calendly are optional locally; the API logs and skips them when unset.
+
+### Local dev without Clerk
+
+Run the backend with `DEV_AUTH=1` (and no Clerk keys) against local Supabase, and the frontend with
+`VITE_DEV_AUTH=1` (and no `VITE_CLERK_PUBLISHABLE_KEY`). `/sign-in` then offers "Tutor (admin)" and
+"Student" buttons for the seeded users. The backend refuses this mode unless Clerk is unconfigured,
+`NODE_ENV` isn't `production` and `SUPABASE_URL` is localhost, and production builds of the frontend
+never include it.
+
+### End-to-end tests
+
+```bash
+supabase start      # once
+npm run e2e         # resets the local DB, starts API (:4100) + app (:5180) in DEV_AUTH mode, runs Playwright in your Chrome
+```
+
+`e2e/tutor-app.spec.ts` walks the whole app: request -> accept -> Calendly booking/cancel (signed
+webhooks), resource upload/share/download, tutor profile + photo, editable assessment, student
+records, review moderation, course and policy editing, and access control.
 
 ```bash
 npm run typecheck   # frontend + backend

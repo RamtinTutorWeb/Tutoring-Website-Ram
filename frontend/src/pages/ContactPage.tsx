@@ -8,6 +8,8 @@ import type { NewRequest, SessionRequest } from "../api/types";
 import { useSession } from "../auth/session";
 import AdminEditLink from "../components/AdminEditLink";
 import Prose from "../components/Prose";
+import Turnstile from "../components/Turnstile";
+import { turnstileSiteKey } from "../config";
 
 export default function ContactPage() {
   const { content } = useContent();
@@ -57,10 +59,12 @@ function RequestSent({ request, onReset }: { request: SessionRequest; onReset: (
 function ContactRequestForm({ onSubmitted }: { onSubmitted: (request: SessionRequest) => void }) {
   const { content } = useContent();
   const { isSignedIn, fullName, email } = useSession();
-  const { me } = useMe();
+  const { me, loading: meLoading } = useMe();
   const createRequest = useCreateRequest();
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileReset, setTurnstileReset] = useState(0);
   const options = content.selectableOptions;
   const defaultName = me?.fullName || fullName || "";
   const defaultEmail = me?.email || email || "";
@@ -88,12 +92,18 @@ function ContactRequestForm({ onSubmitted }: { onSubmitted: (request: SessionReq
       setFeedback("Please enter a valid email.");
       return;
     }
+    if (turnstileSiteKey && !turnstileToken) {
+      setFeedback("Please complete the human check.");
+      return;
+    }
 
     setSubmitting(true);
     setFeedback("");
     try {
-      onSubmitted(await createRequest(request));
+      onSubmitted(await createRequest({ ...request, ...(turnstileToken ? { turnstileToken } : {}) }));
     } catch (err) {
+      // Tokens are single-use: get a fresh one for the retry.
+      setTurnstileReset((n) => n + 1);
       // Server-side failures are not actionable for the visitor: point them to a direct channel instead.
       const serverDown = err instanceof ApiError && (err.status === 0 || err.status >= 500);
       const direct = content.pages.contact.email ? ` You can also email ${content.pages.contact.email}.` : "";
@@ -105,8 +115,10 @@ function ContactRequestForm({ onSubmitted }: { onSubmitted: (request: SessionReq
     }
   }
 
-  // Remount when the signed-in profile arrives so the defaultValues prefill.
-  const formKey = isSignedIn ? `signed-in-${defaultEmail}` : "signed-out";
+  // Signed in: wait for the profile so the prefilled defaults are final and the form never
+  // remounts (which would wipe anything already typed).
+  if (isSignedIn && meLoading) return <div className="card"><p className="muted">Loading your details...</p></div>;
+  const formKey = isSignedIn ? `signed-in-${me?.id ?? ""}` : "signed-out";
 
   return (
     <form id="contact-form" className="card form-grid" onSubmit={handleSubmit} key={formKey}>
@@ -142,7 +154,11 @@ function ContactRequestForm({ onSubmitted }: { onSubmitted: (request: SessionReq
       <label className="full">Message<textarea name="message" required rows={4} /></label>
       <label className="check-row full"><input name="isUrgent" type="checkbox" /> This is urgent</label>
       <label className="check-row full"><input name="consultation" type="checkbox" /> I'd like a free consultation first</label>
-      <label className="check-row full"><input name="notRobot" type="checkbox" required /> I'm not a robot</label>
+      {turnstileSiteKey ? (
+        <div className="full"><Turnstile onToken={setTurnstileToken} resetKey={turnstileReset} /></div>
+      ) : (
+        <label className="check-row full"><input name="notRobot" type="checkbox" required /> I'm not a robot</label>
+      )}
       <div className="full">
         <button className="primary" type="submit" disabled={submitting}>{submitting ? "Sending..." : "Send request"}</button>
         <p className={`feedback ${feedback ? "error" : ""}`} role="alert">{feedback}</p>

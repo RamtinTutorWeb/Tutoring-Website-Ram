@@ -75,6 +75,15 @@ export interface SitePages {
 
 export const PAGE_KEYS = ['home', 'about', 'examPrep', 'policy', 'contact', 'booking'] as const;
 
+/** A placement-assessment question; a miss recommends `topic`. */
+export interface AssessmentQuestion {
+  id: string;
+  text: string;
+  options: string[];
+  correctIndex: number;
+  topic: string;
+}
+
 export interface SiteContent {
   courses: Course[];
   examPrepTracks: Course[];
@@ -82,6 +91,7 @@ export interface SiteContent {
   faq: FaqItem[];
   selectableOptions: SelectableOptions;
   pages: SitePages;
+  assessmentQuestions: AssessmentQuestion[];
 }
 
 export const REQUEST_STATUSES = ['new', 'accepted', 'declined', 'scheduled', 'closed'] as const;
@@ -126,6 +136,9 @@ export interface Booking {
   endAt: string | null;
   status: BookingStatus;
   cancelReason: string | null;
+  /** Calendly invitee links; null for bookings synced before they were stored. */
+  cancelUrl: string | null;
+  rescheduleUrl: string | null;
 }
 
 export const COURSE_STATUSES = ['registered', 'in-progress', 'passed'] as const;
@@ -147,5 +160,30 @@ export interface Assessment {
   score: number | null;
   total: number | null;
   recommendation: string | null;
+  createdAt: string;
+}
+
+export const RESOURCE_KINDS = ['file', 'link', 'video'] as const;
+export type ResourceKind = (typeof RESOURCE_KINDS)[number];
+
+export const RESOURCE_VISIBILITIES = ['public', 'students', 'private'] as const;
+export type ResourceVisibility = (typeof RESOURCE_VISIBILITIES)[number];
+
+export interface Resource {
+  id: string;
+  title: string;
+  description: string;
+  kind: ResourceKind;
+  /** Link/video target; null for files (use GET /resources/:id/download). */
+  url: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  subject: string;
+  courseId: string | null;
+  visibility: ResourceVisibility;
+  /** Admin only: who a `private` resource is shared with. Empty for other viewers. */
+  studentIds: string[];
+  featured: boolean;
   createdAt: string;
 }

@@ -25,6 +25,7 @@ interface ContentValue {
 }
 
 const emptyContent: SiteContent = {
+  assessmentQuestions: [],
   courses: [],
   examPrepTracks: [],
   reviews: [],

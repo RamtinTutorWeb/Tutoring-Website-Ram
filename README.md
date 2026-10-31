@@ -16,7 +16,7 @@ Website and booking system for a private math and physics tutoring practice (uni
 
 The browser only talks to the API; only the API talks to Supabase. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the HTTP contract and env vars, and [`docs/DEPLOY.md`](docs/DEPLOY.md) for setting up the accounts.
 
-Taking over the project? Start with [`docs/HANDOFF.pdf`](docs/HANDOFF.pdf): accounts to hand over, how everything fits together, production config, testing, deployment, troubleshooting and open items (as of 2026-10-31).
+Taking over the project? Start with [`docs/HANDOFF.pdf`](docs/HANDOFF.pdf): accounts to hand over, how everything fits together, production config, testing, deployment, troubleshooting and open items (as of 2026-10-31). Remaining owner to-dos: [`docs/TODO.md`](docs/TODO.md).
 
 ## Roles
 
